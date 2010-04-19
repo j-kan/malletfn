@@ -133,9 +133,9 @@
       (.setNumThreads       1))))
 
 
-; (def lda (make-lda "sunny.ser" 1000 8))
+; (def lda (make-lda "resources/sunny.ser" 1000 8))
  
-;; (def lda (make-lda "rhinoplastfm.ser" 1000 16))
+;; (def lda (make-lda "resources/rhinoplastfm.ser" 1000 16))
 ;(lda-load-instances)
 ;(lda-estimate)
 ;(lda-write-results)
