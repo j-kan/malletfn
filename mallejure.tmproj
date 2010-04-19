@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>topicmodel-viz.clj</string>
+	<string>src/mallejure/pipe/iterator/mongodb-collection-iterator.clj</string>
 	<key>documents</key>
 	<array>
 		<dict>
@@ -21,59 +21,58 @@
 	<integer>374</integer>
 	<key>metaData</key>
 	<dict>
-		<key>pe.clj</key>
+		<key>src/mallejure/pipe/iterator/mongodb-collection-iterator.clj</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
 				<integer>12</integer>
 				<key>line</key>
-				<integer>22</integer>
+				<integer>19</integer>
 			</dict>
-			<key>columnSelection</key>
-			<false/>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
-			<integer>72</integer>
-			<key>selectFrom</key>
-			<dict>
-				<key>column</key>
-				<integer>0</integer>
-				<key>line</key>
-				<integer>22</integer>
-			</dict>
-			<key>selectTo</key>
-			<dict>
-				<key>column</key>
-				<integer>0</integer>
-				<key>line</key>
-				<integer>23</integer>
-			</dict>
+			<integer>0</integer>
 		</dict>
-		<key>topicmodel-viz.clj</key>
+		<key>src/topicmodel-viz.clj</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>0</integer>
+				<integer>19</integer>
 				<key>line</key>
-				<integer>45</integer>
+				<integer>2</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
 			<integer>0</integer>
 		</dict>
+		<key>src/topicmodel.clj</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>75</integer>
+				<key>line</key>
+				<integer>39</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>21</integer>
+		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
-		<string>pe.clj</string>
-		<string>topicmodel-viz.clj</string>
+		<string>src/topicmodel.clj</string>
+		<string>src/topicmodel-viz.clj</string>
+		<string>src/mallejure/pipe/iterator/mongodb-collection-iterator.clj</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>
 	<key>windowFrame</key>
-	<string>{{31, 264}, {1369, 762}}</string>
+	<string>{{160, 145}, {1369, 762}}</string>
 </dict>
 </plist>

@@ -1,8 +1,11 @@
 (ns topicmodel
+  (:require mallejure.mongo)  
+  (:import (mallejure.pipe.iterator.SeqIterator)) 
   (:import (java.io File))
-  (:import (cc.mallet.types FeatureSequence FeatureVector InstanceList Alphabet))
+  (:import (cc.mallet.types FeatureSequence FeatureVector Instance InstanceList Alphabet))
   (:import (cc.mallet.pipe.iterator FileIterator))
   (:import (com.mongodb DBCollection DBCursor DBObject Mongo MongoException))
+  (:import (com.mongodb.util.JSON))
   (:import (edu.umass.cs.mallet.users.kan.topics ParallelTopicModel)))
 
 (defn basename [filename]
@@ -23,9 +26,65 @@
     (try (.readObject ois)
       (finally (.close ois)))))
 
+(def extra-stop-words
+  ["href" "http" "www" "music" "fm" "bbcode" "rel" "nofollow" 
+   "artist" "title" "tag" "class" "album" "unknown" "span" 
+   "strong" "em" "track" "ndash" "ul" "ol" "li"])
 
-(defn load-from-mongo [file]
-  '())
+
+(defn make-instance-pipe []
+  (new cc.mallet.pipe.SerialPipes 
+    (into-array cc.mallet.pipe.Pipe
+      [(new cc.mallet.pipe.Input2CharSequence)
+       (new cc.mallet.pipe.CharSequenceRemoveHTML) 
+       (new cc.mallet.pipe.CharSequence2TokenSequence "(?:\\p{L}|\\p{N})+")
+       (new cc.mallet.pipe.TokenSequenceLowercase)
+       (.addStopWords 
+         (new cc.mallet.pipe.TokenSequenceRemoveStopwords false false) 
+         (into-array extra-stop-words))
+       (new cc.mallet.pipe.TokenSequence2FeatureSequence)])))
+
+; (make-instance-pipe)
+; (defn make-iterator [])
+
+(defn instance-from-mongo-result
+  "assumes that your mongo query includes fields 'name' and 'content'"
+  [item]
+  (let [name    (.get item "name")
+        summary (.get item "content")]
+    (new Instance (or summary name) "" name name)))
+
+(def rhinoplast-bio (mallejure.mongo/mongo-collection "rhinoplast" "bio"))
+(def rhinoquery-result 
+  (mallejure.mongo/mongo-query 
+    rhinoplast-bio 
+     "{'name' : /^S/}" 
+     ["name" "content"]
+     instance-from-mongo-result))
+
+; (map #(.get % "name") (seq rhinoquery-result))
+; (map instance-from-mongo-result (seq rhinoquery-result))
+
+;(defn mongo-connection [dbname collname]
+;  (.getCollection (.getDB (new Mongo) dbname) collname))
+
+
+;(def instance-list (new cc.mallet.types.InstanceList (make-instance-pipe)))
+;(def instance-iter (new mallejure.pipe.iterator.SeqIterator rhinoquery-result))
+
+(defn instance-list-from-mongo [query-result]
+  (let [instance-list (new cc.mallet.types.InstanceList (make-instance-pipe))]
+    (.addThruPipe instance-list 
+                  (new mallejure.pipe.iterator.SeqIterator query-result))
+    instance-list))
+    
+
+(defn load-from-mongo [file] 
+  (let [instance-list (instance-list-from-mongo rhinoquery-result)]
+     (serialize-object instance-list file)
+     instance-list))
+
+
 
 (defn load-instances [file]
   (if (.exists file)
@@ -36,7 +95,7 @@
   (let [basename   (basename input-file)
         alpha      (/ 50.0 num-topics)
         beta       0.01
-        outputdir  (format "resources/%s-%d-iterations-%d-topics-%f-alpha-%f-beta" basename num-iterations num-topics alpha beta)]
+        outputdir  (format "%s-%d-iterations-%d-topics-%f-alpha-%f-beta" basename num-iterations num-topics alpha beta)]
     [basename alpha beta outputdir]))
 
 
@@ -74,7 +133,9 @@
       (.setNumThreads       1))))
 
 
+; (def lda (make-lda "sunny.ser" 1000 8))
+ 
 ;; (def lda (make-lda "rhinoplastfm.ser" 1000 16))
-;; (lda-load-instances)
-;; (lda-estimate)
-;; (lda-write-results)
+;(lda-load-instances)
+;(lda-estimate)
+;(lda-write-results)

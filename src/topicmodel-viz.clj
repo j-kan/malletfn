@@ -59,10 +59,13 @@
     
 ;; (def lda (load-lda "rhinoplastfm.ser" 1000 16))
     
-
-(def input-file "rhinoplastfm.ser")
+(def input-file "resources/rhinoplastfm.ser")
 (def num-iterations 1000)
 (def num-topics 16)
+
+;(def input-file "sunny.ser")
+;(def num-iterations 1000)
+;(def num-topics 8)
 
 (defn load-lda [] ;;[input-file num-iterations num-topics]
   (let [[basename alpha beta outputdir] (lda-params input-file num-iterations num-topics)
@@ -247,7 +250,7 @@
 
 (. viz-applet init)
 
-(def viz-frame (JFrame. "lda"))
+(def viz-frame (JFrame. input-file))
 (doto viz-frame
 	(.setDefaultCloseOperation JFrame/DISPOSE_ON_CLOSE)
 	(.add viz-applet)
