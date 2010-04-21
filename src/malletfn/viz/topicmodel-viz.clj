@@ -1,6 +1,6 @@
- (ns topicmodel-viz
+ (ns malletfn.viz.topicmodel-viz
   (:use rosado.processing)
-  (:use topicmodel)
+  (:use malletfn.topicmodel)
   (:import (javax.swing JFrame))
   (:import (processing.core PApplet))
   (:import (java.io File))

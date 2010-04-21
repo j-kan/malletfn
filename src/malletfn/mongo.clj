@@ -1,4 +1,4 @@
-(ns mallejure.mongo
+(ns malletfn.mongo
   (:import (com.mongodb DBCollection DBCursor DBObject Mongo MongoException))
   (:import (com.mongodb.util JSON)))
 
@@ -14,11 +14,13 @@
   (.getCollection (.getDB (new Mongo) dbname) collname))
 
 (defn mongo-query [collection jsonquery fields fun]
-  (map fun 
-    (seq 
-      (.find collection 
-        (JSON/parse jsonquery)
-        (JSON/parse (mongo-json-field-spec fields))))))
+  (do
+    (println "mongo-query" jsonquery)
+    (map fun 
+      (seq 
+        (.find collection 
+          (JSON/parse jsonquery)
+          (JSON/parse (mongo-json-field-spec fields)))))))
 
 
 

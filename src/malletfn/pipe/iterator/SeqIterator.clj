@@ -1,4 +1,4 @@
-(ns mallejure.pipe.iterator.SeqIterator
+(ns malletfn.pipe.iterator.SeqIterator
   (:gen-class
      :extends cc.mallet.pipe.iterator.EmptyInstanceIterator
      :init init

@@ -1,6 +1,6 @@
-(ns topicmodel
-  (:require mallejure.mongo)  
-  (:import (mallejure.pipe.iterator.SeqIterator)) 
+(ns malletfn.topicmodel
+  (:require malletfn.mongo)  
+  (:import (malletfn.pipe.iterator.SeqIterator)) 
   (:import (java.io File))
   (:import (cc.mallet.types FeatureSequence FeatureVector Instance InstanceList Alphabet))
   (:import (cc.mallet.pipe.iterator FileIterator))
@@ -52,7 +52,7 @@
         summary (.get item "content")]
     (new Instance (or summary name) "" name name)))
 
-(def rhinoplast-bio (mallejure.mongo/mongo-collection "rhinoplast" "bio"))
+(def rhinoplast-bio (malletfn.mongo/mongo-collection "rhinoplast" "bio"))
 (def rhinoplast-query "")
 
 ; (make-instance-pipe)
@@ -67,20 +67,20 @@
 ;  (.getCollection (.getDB (new Mongo) dbname) collname))
 
 ;(def instance-list (new cc.mallet.types.InstanceList (make-instance-pipe)))
-;(def instance-iter (new mallejure.pipe.iterator.SeqIterator rhinoquery-result))
+;(def instance-iter (new malletfn.pipe.iterator.SeqIterator rhinoquery-result))
 
 
 (defn instance-list-from-mongo [query-result]
   (let [instance-list (new cc.mallet.types.InstanceList (make-instance-pipe))]
     (.addThruPipe instance-list 
-                  (new mallejure.pipe.iterator.SeqIterator query-result))
+                  (new malletfn.pipe.iterator.SeqIterator query-result))
     instance-list))
     
 
 (defn load-from-mongo [file] 
   (let [instance-list 
           (instance-list-from-mongo 
-              (mallejure.mongo/mongo-query 
+              (malletfn.mongo/mongo-query 
                 rhinoplast-bio rhinoplast-query 
                 ["name" "content"]
                 instance-from-mongo-result))]
@@ -134,7 +134,7 @@
       (.setNumThreads       1))))
 
 
-; (def lda (make-lda "resources/sunny.ser" 1000 8))
+; (def lda (make-lda "resources/docs.ser" 1000 8))
  
 ;; (def lda (make-lda "resources/rhinoplastfm.ser" 1000 16))
 ;(lda-load-instances)
