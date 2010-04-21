@@ -9,7 +9,7 @@
   [[] (ref some-seq)])
 
 (defn -hasNext [this]
-  (if (seq @(.state this)) true false))
+  (boolean @(.state this)))
  
 (defn -next [this]
   (let [[car & cdr] @(.state this)]
