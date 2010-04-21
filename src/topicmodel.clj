@@ -44,8 +44,6 @@
          (into-array extra-stop-words))
        (new cc.mallet.pipe.TokenSequence2FeatureSequence)])))
 
-; (make-instance-pipe)
-; (defn make-iterator [])
 
 (defn instance-from-mongo-result
   "assumes that your mongo query includes fields 'name' and 'content'"
@@ -55,12 +53,12 @@
     (new Instance (or summary name) "" name name)))
 
 (def rhinoplast-bio (mallejure.mongo/mongo-collection "rhinoplast" "bio"))
-(def rhinoquery-result 
-  (mallejure.mongo/mongo-query 
-    rhinoplast-bio 
-     "{'name' : /^S/}" 
-     ["name" "content"]
-     instance-from-mongo-result))
+(def rhinoplast-query "")
+
+; (make-instance-pipe)
+; (defn make-iterator [])
+
+; (def rhinoplast-query "{'name' : /^Sun/}")
 
 ; (map #(.get % "name") (seq rhinoquery-result))
 ; (map instance-from-mongo-result (seq rhinoquery-result))
@@ -68,9 +66,9 @@
 ;(defn mongo-connection [dbname collname]
 ;  (.getCollection (.getDB (new Mongo) dbname) collname))
 
-
 ;(def instance-list (new cc.mallet.types.InstanceList (make-instance-pipe)))
 ;(def instance-iter (new mallejure.pipe.iterator.SeqIterator rhinoquery-result))
+
 
 (defn instance-list-from-mongo [query-result]
   (let [instance-list (new cc.mallet.types.InstanceList (make-instance-pipe))]
@@ -80,11 +78,14 @@
     
 
 (defn load-from-mongo [file] 
-  (let [instance-list (instance-list-from-mongo rhinoquery-result)]
+  (let [instance-list 
+          (instance-list-from-mongo 
+              (mallejure.mongo/mongo-query 
+                rhinoplast-bio rhinoplast-query 
+                ["name" "content"]
+                instance-from-mongo-result))]
      (serialize-object instance-list file)
      instance-list))
-
-
 
 (defn load-instances [file]
   (if (.exists file)
