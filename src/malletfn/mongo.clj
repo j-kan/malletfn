@@ -23,6 +23,5 @@
           (JSON/parse (mongo-json-field-spec fields)))))))
 
 
-
 ;(def rhinoplast-bio (mongo-collection "rhinoplast" "bio"))
 ;(first (seq (mongo-query rhinoplast-bio "{'name':'Sun Ra'}" ["name" "content"])))

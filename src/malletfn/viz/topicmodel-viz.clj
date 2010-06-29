@@ -8,71 +8,21 @@
   (:import (cc.mallet.pipe.iterator FileIterator))
   (:import (edu.umass.cs.mallet.users.kan.topics ParallelTopicModel)))
 
-;;------- doc topic assignment ----------;;
-
-(defn doc-name [doc-topic-assignment]
-  (.toString (.getName (.instance doc-topic-assignment))))
-
-(defn doc-word-sequence [doc-topic-assignment]
-  "mallet FeatureSequence for word tokens"
-  (.getData (.instance doc-topic-assignment)))
-
-(defn doc-word-features [doc-topic-assignment]
-  "word token indices as seq"
-  (let [word-seq (doc-word-sequence doc-topic-assignment)
-        size     (.size word-seq)]
-    (take size (.getFeatures word-seq))))
-
-(defn doc-word-alphabet [doc-topic-assignment]
-  "mallet Alphabet for word types"
-  (.getAlphabet (doc-word-sequence doc-topic-assignment)))
-
-(defn doc-topic-sequence [doc-topic-assignment]
-  "mallet LabelSequence for topics"
-  (.topicSequence doc-topic-assignment))
-
-(defn doc-topic-features [doc-topic-assignment]
-  "int array of topic assignments for doc word tokens"
-  (.getFeatures (.topicSequence doc-topic-assignment)))
-  
-(defn doc-content [doc-topic-assignment]
-  "seq of word tokens"
-  (let [word-alphabet (doc-word-alphabet doc-topic-assignment)]
-    (map #(.lookupObject word-alphabet %) 
-         (doc-word-features doc-topic-assignment))))
-
-(defn doc-content-str [doc-topic-assignment]
-  (apply str (interpose " " (doc-content doc-topic-assignment))))
-
-(defn doc-c-topics [doc-topic-assignment]
-  (let [topics     (doc-topic-features doc-topic-assignment)
-        num-topics (.size (.getAlphabet (doc-topic-sequence doc-topic-assignment)))
-        inc-vec    (fn [v i] (assoc v i (inc (nth v i))))]
-    (reduce (fn [v t] (inc-vec v t)) 
-            (vec (int-array num-topics 0)) 
-            topics)))
-
-(defn doc-p-topics [doc-topic-assignment]
-  (let [c    (doc-c-topics doc-topic-assignment)
-        norm (reduce + 0 c)]
-    (map #(/ % norm) c)))
-    
 ;; (def lda (load-lda "rhinoplastfm.ser" 1000 16))
     
-(def input-file "resources/rhinoplastfm.ser")
-(def num-iterations 1000)
-(def num-topics 16)
-
-;(def input-file "sunny.ser")
+;(def input-file "resources/rhinoplastfm.ser")
 ;(def num-iterations 1000)
-;(def num-topics 8)
+;(def num-topics 16)
+
+(def input-file "resources/docs.ser")
+(def num-iterations 1000)
+(def num-topics 8)
 
 (defn load-lda [] ;;[input-file num-iterations num-topics]
   (let [[basename alpha beta outputdir] (lda-params input-file num-iterations num-topics)
         lda (ParallelTopicModel/read (File. outputdir "lda-model.ser"))]
     
     lda))
-
 
 (def lda (load-lda))
 (def topic-assignments (.getData lda))
@@ -115,6 +65,7 @@
 
 (def drawn       (atom false))
 (def start-index (atom 0))
+(def page-size   (atom 0))
 
 (def viz-const 
   { :y-line-height 18
@@ -234,18 +185,22 @@
                   (text-font (load-font "resources/GillSans-14.vlw") 14)
                   (fill-float 50 100 80 80)
                   (framerate 10)
-                  (reset! drawn false))))
+                  (swap! drawn false))))
        (draw []
              (if (not @drawn) 
                  (binding [*applet* this]
-                   (draw-docs this 
-                              topic-assignments 
-                              (line-xy (- (width) 10) (- (height) 20) 
-                                       (- (width) 10) (viz-const :y-line-height)))
-                   (reset! drawn true))))
+                   (let [num-drawn (draw-docs this 
+                                              topic-assignments 
+                                              (line-xy (- (width) 10) (- (height) 20) 
+                                                       (- (width) 10) (viz-const :y-line-height)))]
+                     (swap! page-size num-drawn)
+                     (swap! drawn true)))))
+       (keyPressed [evt]
+             (binding [*applet* this]
+               (swap! start-index (+ @start-index @page-size))))
        (mouseClicked [evt]
              (binding [*applet* this]
-               (reset! drawn false)))))
+               (swap! drawn false)))))
 
 
 (. viz-applet init)
