@@ -1,3 +1,5 @@
 resources
+classes
+bin
 *.diff
 *.log
