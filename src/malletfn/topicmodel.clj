@@ -134,45 +134,43 @@
 
 (defn run-model 
   ([m] 
+      (println (type (:inferencer m)))
       (load-model-instances m)
       (estimate-model m) 
-      (write-model-results m))
+      (write-model-results m)
+      m)
   ([m instance-list]
+      (println (type (:inferencer m)))
       (load-model-instances m instance-list)
       (estimate-model m) 
-      (write-model-results m)))
+      (write-model-results m)
+      m))
 
 
 (defn run-lda []
-  (let [lda (make-model :corpus "resources/dmr-full-by-decade.ser" 
-                        :topics 16 
-                        :iterations 2000 
-                        :threads 1)]
-    (println (type lda))
-    (run-model lda)
-    lda))
+  (run-model (make-model :corpus "resources/dmr-full-by-decade.ser" 
+                         :topics 16 
+                         :iterations 2000 
+                         :threads 1)))
 
 (defn run-synth-lda [corpus]
-  (let [lda (make-model :rootname "resources/new-synthetic" 
-                        :topics 4 
-                        :iterations 1000 
-                        :threads 1 
-                        :alpha 2.0 
-                        :beta 0.5)]
-    (println (type lda))
-    (run-model lda corpus)
-    lda))
+  (run-model (make-model :rootname "resources/new-synthetic" 
+                         :topics 4 
+                         :iterations 1000 
+                         :threads 1 
+                         :alpha 2.0 
+                         :beta 0.5)
+             corpus))
 
 (defn run-synth-lda-with-alpha-beta [corpus alpha beta]
-  (let [lda (make-model :rootname "synthetic" 
-                        :topics 4 
-                        :iterations 1000 
-                        :threads 1 
-                        :alpha alpha 
-                        :beta beta)]
-    (println (type lda) alpha beta)
-    (run-model lda corpus)
-    lda))
+  (println "alpha: " alpha "beta: " beta)
+  (run-model (make-model :rootname "synthetic" 
+                         :topics 4 
+                         :iterations 1000 
+                         :threads 1 
+                         :alpha alpha 
+                         :beta beta)
+             corpus))
 
 (defn run-synth-lda-with-param-search []
   (let [corpus (corpus-instance-list-with-features)
@@ -187,12 +185,6 @@
            betas))))
 
 
-(def lda (make-model :rootname "resources/new-synthetic" 
-                        :topics 4 
-                        :iterations 1000 
-                        :threads 1 
-                        :alpha 2.0 
-                        :beta 0.5))
 ;; (def lda (make-lda "resources/docs.ser" 1000 8))
 ;; (def lda (make-lda "resources/rhinoplastfm.ser" 1000 16))
 ;; (def lda (run-lda))

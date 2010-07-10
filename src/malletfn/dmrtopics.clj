@@ -171,40 +171,12 @@
 
 
 (defn make-dmr [& args]
-  
   (let [params      (make-model-params (assoc (apply hash-map args) :class DMRTopicModel))
         dmr         (new DMRTopicModel (:topics params))
         output-file (fn [filename]
                       (let [dir (new File (:outputdir params))]
                         (.mkdirs dir)
                         (new File dir filename)))]
-
-    (defn dmr-load-instances 
-      ([]              (.addInstances dmr (load-instances (new File (:corpus params)))))
-      ([instance-list] (.addInstances dmr instance-list)))
-    
-    (defn dmr-estimate []
-      (.estimate dmr))
-    
-    (defn dmr-write-results []
-      (doto dmr
-        (.printTopWords        (output-file "topic-keys.txt") 20 false)
-        (.printDocumentTopics  (output-file "doc-topics.txt"))
-        (.printTypeTopicCounts (output-file "word-topic-counts.txt"))
-        (.writeParameters      (output-file "parameters.txt"))
-        (.printState           (output-file "state.gz")))
-      (write-features-sorted dmr (output-file "feature-wts.txt"))
-      (serialize-object dmr    (output-file "dmr-model.ser")))
-    
-    (defn dmr-run
-      ([] (dmr-load-instances)
-          (dmr-estimate) 
-          (dmr-write-results))
-      ([instance-list]
-          (dmr-load-instances instance-list)
-          (dmr-estimate) 
-          (dmr-write-results)))
-
     (doto dmr
       (.setRandomSeed       90210)
       ;(.setProgressLogFile  (output-file "progress.txt"))
@@ -212,8 +184,20 @@
       (.setNumIterations    (:iterations params))
       (.setOptimizeInterval 20)
       (.setBurninPeriod     20)
-      (.setNumThreads       (:threads params))
-      )))
+      (.setNumThreads       (:threads params)))
+    (merge params {:inferencer dmr :output-file-fn output-file})))
+
+(defmethod write-model-results DMRTopicModel [model]
+  (let [output-file (:output-file-fn model)
+        dmr         (:inferencer model)]
+    (doto dmr
+      (.printTopWords        (output-file "topic-keys.txt") 20 false)
+      (.printDocumentTopics  (output-file "doc-topics.txt"))
+      (.printTypeTopicCounts (output-file "word-topic-counts.txt"))
+      (.writeParameters      (output-file "parameters.txt"))
+      (.printState           (output-file "state.gz")))
+    (write-features-sorted dmr (output-file "feature-wts.txt"))
+    (serialize-object dmr    (output-file "dmr-model.ser"))))
 
 
 (defn load-dmr [& args] 
@@ -222,27 +206,20 @@
     dmr))
 
 (defn run-dmr []
-  (let [dmr (make-dmr :corpus     "resources/dmr-full-by-decade.ser" 
-                      :iterations 1000 
-                      :topics 8 
-                      :threads 1)]
-    (println (type dmr))
-    (dmr-run)
-    dmr))
+  (run-model (make-dmr :corpus     "resources/dmr-full-by-decade.ser" 
+                       :topics     8 
+                       :iterations 1000 
+                       :threads    1)))
 
+(defn run-synth-dmr [corpus]
+  (run-model (make-dmr :rootname "resources/synthetic-dmr-" 
+                       :iterations 1000 
+                       :topics 4 
+                       :threads 1)
+             corpus))
 
-(def synthetic-corpus (corpus-instance-list-with-features))
-
-(defn run-synth-dmr []
-  (let [dmr (make-dmr :rootname "resources/synthetic-dmr-" 
-                      :iterations 1000 
-                      :topics 4 
-                      :threads 1)]
-    (println (type dmr))
-    (dmr-run synthetic-corpus) 
-    dmr))
-
-;; (def dmr (run-synth-dmr))
+;;(def synthetic-corpus (corpus-instance-list-with-features))
+;; (def dmr (run-synth-dmr synthetic-corpus))
 
 ; (def dmr (load-dmr :corpus "resources/dmr-full-by-decade.ser" :iterations 1000 :topics 8 :threads 1))
 ; (def dmr (run-dmr))	
