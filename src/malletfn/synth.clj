@@ -181,17 +181,6 @@
           (vec-frequencies (vec (map #(round-int 5 (- (int (first (seq %))) (int \a))) 
                                      doc-as-words)) 26))))))
 
-(defn make-corpus-instance-list
- 
-  ([words] 
-    (make-corpus-instance-list-with-features 
-      words
-      (map derive-doc-features words)))
-
-  ([topics num-docs eta symmetric-alpha symmetric-beta]
-      (make-corpus-instance-list 
-        (sample-corpus-as-words topics num-docs eta symmetric-alpha symmetric-beta))))
-
 (defn make-corpus-instance-list-with-features
  
   ([words features] 
@@ -210,6 +199,19 @@
     (let [[words features] (sample-corpus-as-words-with-features 
                               topics num-docs eta feature-distribution symmetric-beta)]
       (make-corpus-instance-list-with-features words features))))
+
+
+(defn make-corpus-instance-list
+ 
+  ([words] 
+    (make-corpus-instance-list-with-features 
+      words
+      (map derive-doc-features words)))
+
+  ([topics num-docs eta symmetric-alpha symmetric-beta]
+      (make-corpus-instance-list 
+        (sample-corpus-as-words topics num-docs eta symmetric-alpha symmetric-beta))))
+
 
 (def topics 
   (map #(sort (seq (.split % "\\s+")))  

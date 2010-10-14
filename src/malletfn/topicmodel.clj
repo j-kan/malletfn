@@ -1,4 +1,8 @@
 (ns malletfn.topicmodel
+
+  ^{:doc    "Runs a Mallet ParallelTopicModel using Clojure.  Includes some code for pulling instance lists out of mongodb."
+    :author "jkan" }
+
   (:require malletfn.mongo)  
   (:use     malletfn.fileutil)  
   (:use     malletfn.corpusutil)  
@@ -9,12 +13,6 @@
 ;  (:import (cc.mallet.topics ParallelTopicModel)))
   (:import (edu.umass.cs.mallet.users.kan.topics ParallelTopicModel)))
 
- 
-(defn instance-list-from-mongo [pipe query-result]
-  (make-instance-list (mallet-iterator query-result)))
-
-
-
 
 (def extra-stop-words
   ["href" "http" "www" "music" "fm" "bbcode" "rel" "nofollow" 
@@ -22,17 +20,19 @@
    "strong" "em" "track" "ndash" "ul" "ol" "li"])
 
 
-(defn- make-instance-pipe []
-  (new cc.mallet.pipe.SerialPipes 
-    (into-array cc.mallet.pipe.Pipe
-      [(new cc.mallet.pipe.Input2CharSequence)
-       (new cc.mallet.pipe.CharSequenceRemoveHTML) 
-       (new cc.mallet.pipe.CharSequence2TokenSequence "(?:\\p{L}|\\p{N})+")
-       (new cc.mallet.pipe.TokenSequenceLowercase)
-       (.addStopWords 
-         (new cc.mallet.pipe.TokenSequenceRemoveStopwords false false) 
-         (into-array extra-stop-words))
-       (new cc.mallet.pipe.TokenSequence2FeatureSequence)])))
+(defn instance-list-from-mongo [query-result]
+  (make-instance-list 
+    (make-instance-pipe
+      (new cc.mallet.pipe.Input2CharSequence)
+      (new cc.mallet.pipe.CharSequenceRemoveHTML) 
+      (new cc.mallet.pipe.CharSequence2TokenSequence "(?:\\p{L}|\\p{N})+")
+      (new cc.mallet.pipe.TokenSequenceLowercase)
+      (.addStopWords 
+        (new cc.mallet.pipe.TokenSequenceRemoveStopwords false false) 
+        (into-array extra-stop-words))
+      (new cc.mallet.pipe.TokenSequence2FeatureSequence))
+    (mallet-iterator query-result)))
+
 
 (defn- instance-from-mongo-result
   "assumes that your mongo query includes fields 'name' and 'content'"
@@ -62,7 +62,6 @@
 (defn- load-from-mongo [file] 
   (let [instance-list 
           (instance-list-from-mongo 
-              (make-instance-pipe)
               (malletfn.mongo/mongo-query 
                 rhinoplast-bio rhinoplast-query 
                 ["name" "content"]
