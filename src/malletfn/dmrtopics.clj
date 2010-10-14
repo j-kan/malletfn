@@ -4,10 +4,8 @@
   (:use     malletfn.fileutil)
   (:use     malletfn.corpusutil)
   (:use     malletfn.synth)
-  (:import (malletfn.pipe.iterator.SeqIterator)) 
   (:import (java.io File))
   (:import (cc.mallet.types FeatureSequence FeatureVector Instance InstanceList Alphabet))
-  (:import (cc.mallet.pipe.iterator FileIterator))
   (:import (com.mongodb DBCollection DBCursor DBObject Mongo MongoException))
   ;(:import (cc.mallet.topics DMRTopicModel)))
   (:import (edu.umass.cs.mallet.users.kan.topics DMRTopicModel)))
@@ -95,17 +93,17 @@
 
 
 (defn dmr-instance-pipe []
-  (new cc.mallet.pipe.SerialPipes 
-    (into-array cc.mallet.pipe.Pipe
-      [(new cc.mallet.pipe.TargetStringToFeatures)
-       (new cc.mallet.pipe.Input2CharSequence)
-       (new cc.mallet.pipe.CharSequenceRemoveHTML) 
-       (new cc.mallet.pipe.CharSequence2TokenSequence "(?:\\p{L}|\\p{N})+")
-       (new cc.mallet.pipe.TokenSequenceLowercase)
-       (.addStopWords 
-         (new cc.mallet.pipe.TokenSequenceRemoveStopwords false false) 
-         (into-array extra-stop-words))
-       (new cc.mallet.pipe.TokenSequence2FeatureSequence)])))
+  (make-instance-pipe
+    (new cc.mallet.pipe.TargetStringToFeatures)
+    (new cc.mallet.pipe.Input2CharSequence)
+    (new cc.mallet.pipe.CharSequenceRemoveHTML) 
+    (new cc.mallet.pipe.CharSequence2TokenSequence "(?:\\p{L}|\\p{N})+")
+    (new cc.mallet.pipe.TokenSequenceLowercase)
+    (.addStopWords 
+      (new cc.mallet.pipe.TokenSequenceRemoveStopwords false false) 
+      (into-array extra-stop-words))
+    (new cc.mallet.pipe.TokenSequence2FeatureSequence)))
+
 
 (defn years-from-summary [summary]
   (map #(Integer/parseInt %) 
@@ -218,8 +216,8 @@
                        :threads 1)
              corpus))
 
-;;(def synthetic-corpus (corpus-instance-list-with-features))
-;; (def dmr (run-synth-dmr synthetic-corpus))
+;(def corpus (corpus-instance-list-with-features))
+;(def dmr (run-synth-dmr corpus))
 
 ; (def dmr (load-dmr :corpus "resources/dmr-full-by-decade.ser" :iterations 1000 :topics 8 :threads 1))
 ; (def dmr (run-dmr))	

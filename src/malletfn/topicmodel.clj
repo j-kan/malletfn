@@ -3,17 +3,15 @@
   (:use     malletfn.fileutil)  
   (:use     malletfn.corpusutil)  
   (:use     malletfn.synth)
-  (:import (malletfn.pipe.iterator.SeqIterator)) 
   (:import (java.io File))
   (:import (cc.mallet.types FeatureSequence FeatureVector Instance InstanceList Alphabet))
-  (:import (cc.mallet.pipe.iterator FileIterator))
   (:import (com.mongodb DBCollection DBCursor DBObject Mongo MongoException))
 ;  (:import (cc.mallet.topics ParallelTopicModel)))
   (:import (edu.umass.cs.mallet.users.kan.topics ParallelTopicModel)))
 
  
 (defn instance-list-from-mongo [pipe query-result]
-  (make-instance-list (new malletfn.pipe.iterator.SeqIterator query-result)))
+  (make-instance-list (mallet-iterator query-result)))
 
 
 

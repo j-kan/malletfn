@@ -1,6 +1,12 @@
-(ns malletfn.corpusutil
+(ns malletfn.corpusutil 
+
+  ^{:doc    "Utilities to work with Mallet corpora using Clojure."
+    :author "jkan" }
+
+  (:use clojure.test)
   (:import (cc.mallet.types Alphabet))
   (:import (cc.mallet.util Randoms)))
+
 
 (defmulti sort-indices class)
 
@@ -48,9 +54,93 @@
 
 (defn make-alphabet [words]
   (new Alphabet (to-array words)))
-  
+
+
+
 (defn make-instance-list [pipe iterator]
   (let [instance-list (new cc.mallet.types.InstanceList pipe)]
     (.addThruPipe instance-list iterator)
     instance-list))
+
+(defn make-instance-pipe [& pipes]
+  (new cc.mallet.pipe.SerialPipes
+    (into-array cc.mallet.pipe.Pipe pipes)))
+
+
+
+(defn mallet-iterator 
+  "Adapts a Clojure sequence to work as a Mallet Instance iterator"
+  [some-seq]
+  (let [state (ref some-seq)]
+    (reify java.util.Iterator
+      (hasNext [this] 
+        (not (empty? @state)))
+      (next [this] 
+        (let [[car & cdr] @state]
+          (dosync (ref-set state cdr))
+          (println (cons :doc car))
+          (new cc.mallet.types.Instance (apply str (interpose " " car)) nil nil nil)))
+      (remove [this] 
+        (let [[car & cdr] @state]
+          (dosync (ref-set state cdr)))))))
+
+
+(defn mallet-iterator-with-features 
+  "Adapts two parallel Clojure sequences, 
+   the first containing data and the second containing features, 
+   to work as a Mallet Instance iterator"
+  [data-seq features-seq]
+  (let [state (ref (seq (interleave data-seq features-seq)))]
+    (reify java.util.Iterator
+
+      (hasNext [this] 
+        (not (empty? @state)))
+
+      (next [this] 
+        (let [[data features & cdr] @state
+              str-data              (apply str (interpose " " data))
+              str-features          (apply str (interpose " " features))]
+          (dosync (ref-set state cdr))
+          (println (cons :doc data) (cons :features features))
+          (new cc.mallet.types.Instance str-data str-features nil str-features)))
+
+      (remove [this] 
+        (let [[_ _ & cdr] @state]
+          (dosync (ref-set state cdr)))))))
+
+
+
+
+(deftest test-mallet-iterator
+  (let [ms (mallet-iterator '(["a" "b" "c"] ["d" "e" "f"]))
+        test-next
+           (fn [it] 
+             (do
+               (is (.hasNext it))
+               (.next it)))
+        i1 (test-next ms)
+        i2 (test-next ms)]
+    (is (= "a b c" (.getData i1)))
+    (is (= "d e f" (.getData i2)))
+    (is (not (.hasNext ms)))))
+  
+
+(deftest test-mallet-iterator-with-features
+  (let [ms (mallet-iterator-with-features 
+             [["a" "b" "c"] ["d" "e" "f"]]
+             [["early"] ["late"]])
+        test-next
+           (fn [it] 
+             (do
+               (is (.hasNext it))
+               (.next it)))
+        i1 (test-next ms)
+        i2 (test-next ms)]
+    (is (= "a b c" (.getData i1)))
+    (is (= "d e f" (.getData i2)))
+    (is (not (.hasNext ms)))))
+  
+
+(run-tests)
+
 

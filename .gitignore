@@ -3,3 +3,6 @@ classes
 bin
 *.diff
 *.log
+.cake
+archive
+target

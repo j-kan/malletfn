@@ -1,11 +1,10 @@
 (ns malletfn.synth
  ; (:use clojure.contrib.seq)
   (:use     malletfn.corpusutil)
-  (:import (malletfn.pipe.iterator.SeqIterator)) 
   (:import (cc.mallet.types Alphabet))
   (:import (cc.mallet.util Randoms)))
 
-(set! *warn-on-reflection* true)
+;(set! *warn-on-reflection* true)
 
 (def *randoms* (new Randoms 90210))
 
@@ -185,16 +184,9 @@
 (defn make-corpus-instance-list
  
   ([words] 
-      (let [features (map derive-doc-features words)
-            instance-pipe
-              (new cc.mallet.pipe.SerialPipes 
-                (into-array cc.mallet.pipe.Pipe
-                  [(new cc.mallet.pipe.TargetStringToFeatures)
-                   (new cc.mallet.pipe.Input2CharSequence)
-                   (new cc.mallet.pipe.CharSequence2TokenSequence)
-                   (new cc.mallet.pipe.TokenSequence2FeatureSequence)]))
-            iter (new malletfn.pipe.iterator.SeqWithFeaturesIterator words features)]
-        (make-instance-list instance-pipe iter)))
+    (make-corpus-instance-list-with-features 
+      words
+      (map derive-doc-features words)))
 
   ([topics num-docs eta symmetric-alpha symmetric-beta]
       (make-corpus-instance-list 
@@ -203,15 +195,13 @@
 (defn make-corpus-instance-list-with-features
  
   ([words features] 
-      (let [instance-pipe
-              (new cc.mallet.pipe.SerialPipes 
-                (into-array cc.mallet.pipe.Pipe
-                  [(new cc.mallet.pipe.TargetStringToFeatures)
-                   (new cc.mallet.pipe.Input2CharSequence)
-                   (new cc.mallet.pipe.CharSequence2TokenSequence)
-                   (new cc.mallet.pipe.TokenSequence2FeatureSequence)]))
-            iter (new malletfn.pipe.iterator.SeqWithFeaturesIterator words features)]
-        (make-instance-list instance-pipe iter)))
+		(make-instance-list 
+		  (make-instance-pipe
+		    (new cc.mallet.pipe.TargetStringToFeatures)
+				(new cc.mallet.pipe.Input2CharSequence)
+				(new cc.mallet.pipe.CharSequence2TokenSequence)
+				(new cc.mallet.pipe.TokenSequence2FeatureSequence))
+		  (mallet-iterator-with-features words features)))
 
   ([[words features]] 
       (make-corpus-instance-list-with-features words features))
