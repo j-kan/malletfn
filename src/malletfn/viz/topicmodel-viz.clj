@@ -5,7 +5,6 @@
   (:import (processing.core PApplet))
   (:import (java.io File))
   (:import (cc.mallet.types FeatureSequence FeatureVector InstanceList Alphabet))
-  (:import (cc.mallet.pipe.iterator FileIterator))
   (:import (edu.umass.cs.mallet.users.kan.topics ParallelTopicModel)))
 
 ;; (def lda (load-lda "rhinoplastfm.ser" 1000 16))

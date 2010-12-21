@@ -216,17 +216,22 @@
                        :threads 1)
              corpus))
 
-;(def corpus (corpus-instance-list-with-features))
-;(def dmr (run-synth-dmr corpus))
 
-; (def dmr (load-dmr :corpus "resources/dmr-full-by-decade.ser" :iterations 1000 :topics 8 :threads 1))
-; (def dmr (run-dmr))	
-; (get-feature-weights-sorted (.getRegressionParameters dmr))
-;
-;(write-features-sorted dmr "feature-wts.txt")
 
-;(def maxent (.getRegressionParameters dmr))
-;(.getParameters maxent)
-;(.getNumParameters maxent)
-;
-;(import (cc.mallet.topics DMRTopicModel))
+;;------- testing ----------;;
+
+(comment
+  (def corpus (corpus-instance-list-with-features))
+  (def dmr (run-synth-dmr corpus))
+
+  (def dmr (load-dmr :corpus "resources/dmr-full-by-decade.ser" :iterations 1000 :topics 8 :threads 1))
+  (def dmr (run-dmr))	
+  (get-feature-weights-sorted (.getRegressionParameters dmr))
+  (write-features-sorted dmr "feature-wts.txt")
+
+  (def maxent (.getRegressionParameters dmr))
+  (.getParameters maxent)
+  (.getNumParameters maxent)
+
+  (import (cc.mallet.topics DMRTopicModel))
+)

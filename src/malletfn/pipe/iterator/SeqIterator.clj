@@ -14,6 +14,5 @@
 (defn -next [this]
   (let [[car & cdr] @(.state this)]
     (dosync (ref-set (.state this) cdr))
-    (println (cons :doc car))
+    ;(comment (println (cons :doc car)))
     (new cc.mallet.types.Instance (apply str (interpose " " car)) nil nil nil)))
-

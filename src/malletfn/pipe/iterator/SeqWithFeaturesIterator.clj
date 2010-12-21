@@ -18,6 +18,6 @@
         str-data        (apply str (interpose " " data))
         str-features    (apply str (interpose " " features))]
     (dosync (ref-set (.state this) cdr))
-    (println (cons :doc data) (cons :features features))
+    ;(comment (println (cons :doc data) (cons :features features)))
     (new cc.mallet.types.Instance str-data str-features nil str-features)))
 

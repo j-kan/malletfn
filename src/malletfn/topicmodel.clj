@@ -182,13 +182,17 @@
            betas))))
 
 
-;; (def lda (make-lda "resources/docs.ser" 1000 8))
-;; (def lda (make-lda "resources/rhinoplastfm.ser" 1000 16))
-;; (def lda (run-lda))
-;; (def corpus (corpus-instance-list-with-features))
-;; (def lda (run-synth-lda corpus))
-;; (run-synth-lda-with-param-search)
 
+;;------- testing ----------;;
+
+(comment
+  (def lda (make-lda "resources/docs.ser" 1000 8))
+  (def lda (make-lda "resources/rhinoplastfm.ser" 1000 16))
+  (def lda (run-lda))
+  (def corpus (corpus-instance-list-with-features))
+  (def lda (run-synth-lda corpus))
+  (run-synth-lda-with-param-search)
+)
 
 ;;------- doc topic assignment ----------;;
 

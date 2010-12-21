@@ -78,7 +78,7 @@
       (next [this] 
         (let [[car & cdr] @state]
           (dosync (ref-set state cdr))
-          (println (cons :doc car))
+          ;(println (cons :doc car))
           (new cc.mallet.types.Instance (apply str (interpose " " car)) nil nil nil)))
       (remove [this] 
         (let [[car & cdr] @state]
@@ -101,7 +101,7 @@
               str-data              (apply str (interpose " " data))
               str-features          (apply str (interpose " " features))]
           (dosync (ref-set state cdr))
-          (println (cons :doc data) (cons :features features))
+          ;(println (cons :doc data) (cons :features features))
           (new cc.mallet.types.Instance str-data str-features nil str-features)))
 
       (remove [this] 
