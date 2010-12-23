@@ -133,32 +133,19 @@
         years   (date-features summary)]
     (new Instance summary years name name)))
 
-(defn dmr-instance-list [query]
-  (instance-list-from-mongo 
+(defn dmr-instance-list
+  "builds a DMR-ready Mallet InstanceList from a mongo query"
+   [query]
+   (instance-list-from-mongo 
               (dmr-instance-pipe)
               (malletfn.mongo/mongo-query 
                 rhinoplast-bio query 
                 ["name" "content"]
                 dmr-instance-from-mongo-result)))
 
-;(def dmr-query "{'name' : /^Sun/}")
-;(def dmr-list (dmr-instance-list "{'name' : /^Sun/}"))
-;(.getTarget (nth dmr-list 5))
-; (dmr-instance-list "{'content' : /\\bexperimental\\b/}")
-; (let [instance-list (dmr-instance-list "{'name' : /^The /}")]
+(defmethod model-instance-list-from-mongo DMRTopicModel [model file] 
+  (dmr-instance-list (or (:query model) "")))
 
-
-(defn- dmr-load-from-mongo [query file] 
-  (let [instance-list (dmr-instance-list query)]
-     (serialize-object instance-list file)
-     instance-list))
-
-(defn- load-instances [file]
-  (if (.exists file)
-    (InstanceList/load file)
-    (dmr-load-from-mongo "" file))) 
-
-;"{'content' : /\\bexperimental\\b/}"
 
 (defmethod make-model-params DMRTopicModel [params]
   (let [options    (merge lda-defaults params)
@@ -182,7 +169,10 @@
       (.setNumIterations    (:iterations params))
       (.setOptimizeInterval 20)
       (.setBurninPeriod     20)
-      (.setNumThreads       (:threads params)))
+      (.setNumThreads       (:threads params))
+      (.setNumBatches       8)
+      (.setInitialStep      0.001)
+      (.setMetaStep         0.002))
     (merge params {:inferencer dmr :output-file-fn output-file})))
 
 (defmethod write-model-results DMRTopicModel [model]
@@ -205,8 +195,8 @@
 
 (defn run-dmr []
   (run-model (make-dmr :corpus     "resources/dmr-full-by-decade.ser" 
-                       :topics     8 
-                       :iterations 1000 
+                       :topics     16 
+                       :iterations 2000 
                        :threads    1)))
 
 (defn run-synth-dmr [corpus]
@@ -218,9 +208,11 @@
 
 
 
-;;------- testing ----------;;
+;;------- repl testing bits ----------;;
 
 (comment
+  (in-ns 'malletfn.dmrtopics)
+  
   (def corpus (corpus-instance-list-with-features))
   (def dmr (run-synth-dmr corpus))
 
@@ -234,4 +226,11 @@
   (.getNumParameters maxent)
 
   (import (cc.mallet.topics DMRTopicModel))
+  
+	;(def dmr-query "{'name' : /^Sun/}")
+	;(def dmr-list (dmr-instance-list "{'name' : /^Sun/}"))
+	;(.getTarget (nth dmr-list 5))
+	(malletfn.dmrtopics/dmr-instance-list "{'content' : /\\bexperimental\\b/}")
+  ;"{'content' : /\\bexperimental\\b/}"
+	; (let [instance-list (dmr-instance-list "{'name' : /^The /}")]
 )

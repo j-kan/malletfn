@@ -20,18 +20,22 @@
    "strong" "em" "track" "ndash" "ul" "ol" "li"])
 
 
-(defn instance-list-from-mongo [query-result]
-  (make-instance-list 
-    (make-instance-pipe
-      (new cc.mallet.pipe.Input2CharSequence)
-      (new cc.mallet.pipe.CharSequenceRemoveHTML) 
-      (new cc.mallet.pipe.CharSequence2TokenSequence "(?:\\p{L}|\\p{N})+")
-      (new cc.mallet.pipe.TokenSequenceLowercase)
-      (.addStopWords 
-        (new cc.mallet.pipe.TokenSequenceRemoveStopwords false false) 
-        (into-array extra-stop-words))
-      (new cc.mallet.pipe.TokenSequence2FeatureSequence))
-    (mallet-iterator query-result)))
+(defn instance-list-from-mongo 
+  ([query-result]
+    (instance-list-from-mongo 
+      (make-instance-pipe
+        (new cc.mallet.pipe.Input2CharSequence)
+        (new cc.mallet.pipe.CharSequenceRemoveHTML) 
+        (new cc.mallet.pipe.CharSequence2TokenSequence "(?:\\p{L}|\\p{N})+")
+        (new cc.mallet.pipe.TokenSequenceLowercase)
+        (.addStopWords 
+          (new cc.mallet.pipe.TokenSequenceRemoveStopwords false false) 
+          (into-array extra-stop-words))
+        (new cc.mallet.pipe.TokenSequence2FeatureSequence))
+      query-result))
+  ([pipe query-result]
+    {:pre  [(and pipe query-result)]}
+    (make-instance-list pipe (mallet-iterator query-result))))
 
 
 (defn- instance-from-mongo-result
@@ -58,21 +62,6 @@
 ;(def instance-list (new cc.mallet.types.InstanceList (make-instance-pipe)))
 ;(def instance-iter (new malletfn.pipe.iterator.SeqIterator rhinoquery-result))
 
-
-(defn- load-from-mongo [file] 
-  (let [instance-list 
-          (instance-list-from-mongo 
-              (malletfn.mongo/mongo-query 
-                rhinoplast-bio rhinoplast-query 
-                ["name" "content"]
-                instance-from-mongo-result))]
-     (serialize-object instance-list file)
-     instance-list))
-
-(defn- load-instances [file]
-  (if (.exists file)
-    (InstanceList/load file)
-    (load-from-mongo file)))
 
 
 (defstruct lda-params :class :corpus :topics :iterations :threads)
@@ -109,10 +98,35 @@
       (.setBurninPeriod     200)
       (.setNumThreads       (:threads params)))
     (merge params {:inferencer lda :output-file-fn output-file})))
-  
+
+
+(defmulti model-instance-list-from-mongo :class)
+
+(defmethod model-instance-list-from-mongo ParallelTopicModel [model file] 
+  (instance-list-from-mongo 
+    (malletfn.mongo/mongo-query 
+      rhinoplast-bio rhinoplast-query 
+      ["name" "content"]
+      instance-from-mongo-result)))
+
+(defn load-from-mongo [model file] 
+  (let [instance-list (model-instance-list-from-mongo model file)]
+    (serialize-object instance-list file)
+    instance-list))
+
 (defn load-model-instances 
-  ([model]               (.addInstances (:inferencer model) (load-instances (new File (:corpus model)))))
+  "either loads from an existing serialized instance corpus or build it from scratch from a mongo query"
+  [model]
+  (let [file (new File (:corpus model))]
+    (if (.exists file)
+      (InstanceList/load file)
+      (load-from-mongo model file))))
+
+(defn add-model-instances
+  ([model]               (.addInstances (:inferencer model) (load-model-instances model)))
   ([model instance-list] (.addInstances (:inferencer model) instance-list)))
+
+
 
 (defn estimate-model [model]
   (.estimate (:inferencer model)))
@@ -132,20 +146,20 @@
 (defn run-model 
   ([m] 
       (println (type (:inferencer m)))
-      (load-model-instances m)
+      (add-model-instances m)
       (estimate-model m) 
       (write-model-results m)
       m)
   ([m instance-list]
       (println (type (:inferencer m)))
-      (load-model-instances m instance-list)
+      (add-model-instances m instance-list)
       (estimate-model m) 
       (write-model-results m)
       m))
 
 
 (defn run-lda []
-  (run-model (make-model :corpus "resources/dmr-full-by-decade.ser" 
+  (run-model (make-model :corpus "resources/lda-full.ser" 
                          :topics 16 
                          :iterations 2000 
                          :threads 1)))
@@ -186,8 +200,8 @@
 ;;------- testing ----------;;
 
 (comment
-  (def lda (make-lda "resources/docs.ser" 1000 8))
-  (def lda (make-lda "resources/rhinoplastfm.ser" 1000 16))
+  ;(def lda (make-lda "resources/docs.ser" 1000 8))
+  ;(def lda (make-lda "resources/rhinoplastfm.ser" 1000 16))
   (def lda (run-lda))
   (def corpus (corpus-instance-list-with-features))
   (def lda (run-synth-lda corpus))
