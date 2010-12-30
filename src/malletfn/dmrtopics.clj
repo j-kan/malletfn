@@ -112,7 +112,7 @@
 (defn decades-from-years [s]
   (set (map (partial round-int 10) s)))
 
-(defn beta-date-features [year]
+(defn beta-date-features-for-year [year]
   (letfn [(df [min-year max-year year]
             (let [d (/ (- year min-year) (- max-year min-year))]
               [(format "d_%d_a=%f" min-year (java.lang.Math/log d))
@@ -124,6 +124,8 @@
 (defn date-features [summary]
   (seq2str (decades-from-years (years-from-summary summary))))
 
+(defn beta-date-features [summary]
+  (seq2str (map beta-date-features-for-year (years-from-summary summary))))
 
 (defn dmr-instance-from-mongo-result
   "assumes that your mongo query includes fields 'name' and 'content'"
@@ -199,6 +201,12 @@
                        :iterations 2000 
                        :threads    1)))
 
+(defn run-dmr-small []
+  (run-model (make-dmr :corpus     "resources/dmr-full-by-decade.ser" 
+                       :topics     8 
+                       :iterations 1000 
+                       :threads    1)))
+
 (defn run-synth-dmr [corpus]
   (run-model (make-dmr :rootname "resources/synthetic-dmr-" 
                        :iterations 1000 
@@ -230,7 +238,43 @@
 	;(def dmr-query "{'name' : /^Sun/}")
 	;(def dmr-list (dmr-instance-list "{'name' : /^Sun/}"))
 	;(.getTarget (nth dmr-list 5))
-	(malletfn.dmrtopics/dmr-instance-list "{'content' : /\\bexperimental\\b/}")
+	(def xper 
+   (malletfn.dmrtopics/dmr-instance-list "{'content' : /\\bexperimental\\b/}"))
+ 
+  (-> (first xper) .getData)
+ 
   ;"{'content' : /\\bexperimental\\b/}"
 	; (let [instance-list (dmr-instance-list "{'name' : /^The /}")]
-)
+ 
+   (def features (malletfn.mongo/mongo-query 
+                   malletfn.topicmodel/rhinoplast-bio "{'content' : /\\bexperimental\\b/}" 
+                   ["name" "content"]
+                   (fn [item]
+                     (let [name    (.get item "name")
+                           summary (or (.get item "content") "")
+                           years   (sort (years-from-summary summary))]
+                       [name years]))))
+
+   
+   (def years (map second features))
+   (first features)
+   (nth features  3)
+   (take 4 years)
+   
+   (defn mean-and-variance [s]
+     (let [n    (count s)
+           mean (/ (apply + s) n)
+           sq-m (/ (apply + (map #(* % %) s)) n)
+           var  (- sq-m (* mean mean))]
+       [n (double mean) (double var)]))
+   
+   (mean-and-variance (first years))
+   (map (fn [[name years]] [name (mean-and-variance years)]) (take 20 features))
+   
+   (count (first years))
+   (apply + (first years))
+   
+       
+        
+   ;(use 'clojure.contrib.accumulators)
+   ;(mean-variance (first years)))
