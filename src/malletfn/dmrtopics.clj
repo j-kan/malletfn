@@ -112,6 +112,11 @@
 (defn decades-from-years [s]
   (set (map (partial round-int 10) s)))
 
+(defn epoch-from-year [year]
+  (if (> year 1900)
+    [(round-int 10 year)  (+ 5  (round-int 10  (- year 5)))]
+    [(round-int 100 year) (+ 50 (round-int 100 (- year 50)))]))
+
 (defn beta-date-features-for-year [year]
   (letfn [(df [min-year max-year year]
             (let [d (/ (- year min-year) (- max-year min-year))]
@@ -121,11 +126,15 @@
       (for [min-year [1500 1900 1960] :when (> year min-year)]
         (df min-year 2010 year)))))
 
-(defn date-features [summary]
-  (seq2str (decades-from-years (years-from-summary summary))))
+(defn features-from-years [extractor s]
+   (seq2str (set (flatten (map extractor s)))))
 
 (defn beta-date-features [summary]
-  (seq2str (map beta-date-features-for-year (years-from-summary summary))))
+  (features-from-years beta-date-features-for-year (years-from-summary summary)))
+
+(defn date-features [summary]
+  (features-from-years epoch-from-year (years-from-summary summary)))
+
 
 (defn dmr-instance-from-mongo-result
   "assumes that your mongo query includes fields 'name' and 'content'"
@@ -196,13 +205,13 @@
     dmr))
 
 (defn run-dmr []
-  (run-model (make-dmr :corpus     "resources/dmr-full-by-decade.ser" 
+  (run-model (make-dmr :corpus     "resources/dmr-full-by-overlapping-epoch.ser" 
                        :topics     16 
                        :iterations 2000 
                        :threads    1)))
 
 (defn run-dmr-small []
-  (run-model (make-dmr :corpus     "resources/dmr-full-by-decade.ser" 
+  (run-model (make-dmr :corpus     "resources/dmr-full-by-overlapping-epoch.ser" 
                        :topics     8 
                        :iterations 1000 
                        :threads    1)))
@@ -221,7 +230,8 @@
 (comment
   (in-ns 'malletfn.dmrtopics)
   
-  (def corpus (corpus-instance-list-with-features))
+  (def corpus-with-topics (corpus-instance-list-with-features))
+  (def corpus (first corpus-with-topics))
   (def dmr (run-synth-dmr corpus))
 
   (def dmr (load-dmr :corpus "resources/dmr-full-by-decade.ser" :iterations 1000 :topics 8 :threads 1))
@@ -235,13 +245,21 @@
 
   (import (cc.mallet.topics DMRTopicModel))
   
+  (def viol (malletfn.mongo/mongo-query 
+              rhinoplast-bio  
+              "{'content' : /\\bviolin\\b/}" 
+              ["name" "content"]
+              (fn [item]
+                [(.get item "name") (date-features (or (.get item "content") ""))])))
+  
+  (take 10 viol)
 	;(def dmr-query "{'name' : /^Sun/}")
 	;(def dmr-list (dmr-instance-list "{'name' : /^Sun/}"))
 	;(.getTarget (nth dmr-list 5))
 	(def xper 
    (malletfn.dmrtopics/dmr-instance-list "{'content' : /\\bexperimental\\b/}"))
  
-  (-> (first xper) .getData)
+  (-> (second xper) .getData)
  
   ;"{'content' : /\\bexperimental\\b/}"
 	; (let [instance-list (dmr-instance-list "{'name' : /^The /}")]
@@ -274,7 +292,10 @@
    (count (first years))
    (apply + (first years))
    
-       
+       (decades-from-years [1987 1843])
         
    ;(use 'clojure.contrib.accumulators)
    ;(mean-variance (first years)))
+   
+   
+   )

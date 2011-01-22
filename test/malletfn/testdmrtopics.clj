@@ -2,6 +2,7 @@
   (:use clojure.test)
   (:use [clojure.contrib.seq-utils :only (indexed)])
   (:require malletfn.dmrtopics)
+  (:require malletfn.synth)
   (:import (edu.umass.cs.mallet.users.kan.topics DMRTopicModel)))
 
 (defn count-features [features alphabet]
@@ -10,36 +11,89 @@
         (.increment counter (.toString label)))
       (.toFeatureVector counter)))
 
-(defn make-dmr-optimizable [dmr num-batches] ;  regular-prior-variance intercept-prior-variance
-  (let [dmrtopicmodel     (:inferencer dmr)
-        topic-assignments (.getData dmrtopicmodel)
-        feature-alphabet  (.getTargetAlphabet (.instance (first topic-assignments)))
-        topic-alphabet    (.getTopicAlphabet (:inferencer dmr))
-        num-features      (inc (.size feature-alphabet))
-        num-topics        (:topics dmr)
+(defn get-token-alphabet [instance]
+  (-> instance .getData .getAlphabet))
+
+(defn get-feature-alphabet [instance]
+  (-> instance .getTarget .getAlphabet))
+
+(defn get-topic-alphabet [num-topics]
+  (let [alphabet (new cc.mallet.types.LabelAlphabet)]
+    (doseq [i (range num-topics)] 
+      (.lookupIndex alphabet (str "topic" i)))
+    alphabet))
+
+
+(defn dispatch [head & tail] 
+  (let [typ (or (:type head) (:class head) (class head))]
+    ;(print typ)
+    typ))
+
+(defmulti target-feature-vector dispatch)
+
+(defmethod target-feature-vector edu.umass.cs.mallet.users.kan.topics.TopicAssignment
+  [ta] (.getTarget (.instance ta)))
+  
+(defmethod target-feature-vector :topic-assignment
+  [ta] (.getTarget (:instance ta)))
+  
+(defmulti topic-sequence dispatch)
+
+(defmethod topic-sequence edu.umass.cs.mallet.users.kan.topics.TopicAssignment
+  [ta] (iterator-seq (.iterator (.topicSequence ta))))
+  
+(defmethod topic-sequence :topic-assignment
+  [ta] (:topic-assignment ta))
+
+(defn- make-dmr-optimizable-aux
+  [topic-assignments feature-alphabet topic-alphabet num-batches]  ; regular-prior-variance intercept-prior-variance
+  (let [num-features      (inc (.size feature-alphabet))
+        num-topics        (.size topic-alphabet)
         param-pipe        (doto (new cc.mallet.pipe.Noop)
                             (.setDataAlphabet feature-alphabet)
                             (.setTargetAlphabet topic-alphabet))
         param-instances   (new cc.mallet.types.InstanceList param-pipe) 
         maxent-classifier (new cc.mallet.classify.MaxEnt 
                             param-pipe 
-                            (double-array (* num-features num-topics))) ]
+                            (double-array (* num-features num-topics)))]
     
     (doseq [[i ta] (indexed topic-assignments)]
-      (let [target (.getTarget (.instance ta))]
+      (let [target (target-feature-vector ta)]
         (when target
           (.add param-instances (new cc.mallet.types.Instance 
                                   target 
                                   (count-features 
-                                    (iterator-seq (.iterator (.topicSequence ta)))
+                                    (topic-sequence ta)
                                     topic-alphabet) 
                                   i 
                                   i)))))
-          
+    
     (doto (new edu.umass.cs.mallet.users.kan.topics.DMROptimizable 
             param-instances num-batches maxent-classifier)
       (.setRegularGaussianPriorVariance 0.5)
       (.setInterceptGaussianPriorVariance 100.0))))
+
+(defmulti make-dmr-optimizable 
+  "construct a DmrOptimizable object given various parameters"
+  dispatch)
+
+(defmethod make-dmr-optimizable edu.umass.cs.mallet.users.kan.topics.DMRTopicModel
+  [dmr num-batches]
+    (let [dmrtopicmodel     (:inferencer dmr)
+          topic-assignments (.getData dmrtopicmodel)
+          feature-alphabet  (.getTargetAlphabet (.instance (first topic-assignments)))
+          topic-alphabet    (.getTopicAlphabet (:inferencer dmr))]
+      (make-dmr-optimizable-aux topic-assignments feature-alphabet topic-alphabet num-batches)))
+  
+(defmethod make-dmr-optimizable :dmr-synth-corpus
+  [{corpus            :corpus
+    topic-assignments :topic-assignments
+    num-topics        :num-topics} 
+   num-batches]
+  (let [feature-alphabet  (get-feature-alphabet (first corpus))
+        topic-alphabet    (get-topic-alphabet num-topics)]
+    (make-dmr-optimizable-aux topic-assignments feature-alphabet topic-alphabet num-batches)))
+  
 
 
 
@@ -68,17 +122,38 @@
        (.setInitialStep 0.002)
        (.setMu 0.005))]))
   
-
-
-(comment
   
-	(def corpus (malletfn.synth/corpus-instance-list-with-features))
+(comment
+  (in-ns 'malletfn.testdmrtopics)
+  
+  (def dmr-synth-corpus (malletfn.synth/make-dmr-synth-corpus))
+
+  (def num-topics (count malletfn.synth/topics))
+  (def corpus-with-topics (malletfn.synth/corpus-instance-list-with-features))
+  (def corpus (first corpus-with-topics))
+  (def corpus-topic-assignments (second corpus-with-topics))
+
+	;(def corpus (malletfn.synth/corpus-instance-list-with-features))
 	(def dmr    (time (malletfn.dmrtopics/run-synth-dmr corpus)))
+
  
   (doseq [strfeats (malletfn.dmrtopics/str-features-sorted (.getRegressionParameters (:inferencer dmr)))]
     (println strfeats))
   
 	(malletfn.dmrtopics/str-features-sorted (.getRegressionParameters (:inferencer dmr)))
+ 
+  (def lbfgs-pair (make-lbfgs dmr-synth-corpus))
+  (def lbfgs-dmro (first lbfgs-pair))
+  (def lbfgs      (second lbfgs-pair))
+  
+  (def dmr-lbfgs-pair (make-lbfgs dmr))
+  (.optimize lbfgs)
+
+  (do-optimize dmr-lbfgs-pair)
+  (do-optimize lbfgs-pair)
+  
+  (time (do-optimize (make-lbfgs dmr-synth-corpus)))
+  (time (do-optimize (make-sma dmr-synth-corpus)))
  
   (time (do-optimize (make-lbfgs dmr)))
   (time (do-optimize (make-sma dmr)))

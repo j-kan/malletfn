@@ -20,5 +20,6 @@
 	<classpathentry exported="true" kind="lib" path="lib/rosado.processing-1.1.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/secondstring-1.0.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/trove-2.0.2.jar"/>
+	<classpathentry kind="lib" path="classes"/>
 	<classpathentry kind="output" path="classes"/>
 </classpath>
