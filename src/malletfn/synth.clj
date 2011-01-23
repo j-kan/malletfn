@@ -288,9 +288,9 @@
   (let [[corpus tas]      (corpus-instance-list-with-features)
         num-topics        (count topics)
         topic-assignments (map (fn [instance ta] 
-                                 {:type :topic-assignment
-                                  :instance instance
-                                  :topic-assignment (map (fn [t] (str "topic" t)) ta)})
+                                 {:type             :topic-assignment
+                                  :instance         instance
+                                  :topic-assignment ta})
                             	corpus tas)]
     {:type :dmr-synth-corpus
      :corpus corpus

@@ -43,7 +43,7 @@
   [ta] (iterator-seq (.iterator (.topicSequence ta))))
   
 (defmethod topic-sequence :topic-assignment
-  [ta] (:topic-assignment ta))
+  [ta] (map #(str "topic" %) (:topic-assignment ta)))
 
 (defn- make-dmr-optimizable-aux
   [topic-assignments feature-alphabet topic-alphabet num-batches]  ; regular-prior-variance intercept-prior-variance
