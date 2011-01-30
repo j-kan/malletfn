@@ -76,7 +76,7 @@
         num-features (+ 1 (.size features))]
     (map (fn [feature-i] 
            (let [[fname wts] (get-feature-weights maxent feature-i)]
-              (format " %6s %s" fname (seq2str (map #(format " %8.5f" %) wts))))) 
+              (format " %10s %s" fname (seq2str (map #(format " %8.5f" %) wts))))) 
          (conj (sort-indices features) (.size features)))))
 
 (defn print-features-sorted [maxent pstream]
@@ -148,11 +148,11 @@
   "builds a DMR-ready Mallet InstanceList from a mongo query"
    [query]
    (instance-list-from-mongo 
-              (dmr-instance-pipe)
-              (malletfn.mongo/mongo-query 
-                rhinoplast-bio query 
-                ["name" "content"]
-                dmr-instance-from-mongo-result)))
+     (dmr-instance-pipe)
+     (malletfn.mongo/mongo-query 
+       rhinoplast-bio query 
+       ["name" "content"]
+       dmr-instance-from-mongo-result)))
 
 (defmethod model-instance-list-from-mongo DMRTopicModel [model file] 
   (dmr-instance-list (or (:query model) "")))

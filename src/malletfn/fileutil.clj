@@ -27,5 +27,26 @@
       (finally (.close fos)))))
 
 
+(defmacro with-output-log 
+  "Usage: 
+     (with-output-log \"doblah.log\" 
+       (println \"blah\"))"
+  
+  [logfile & body]
+  `(let [~'save-o *out*
+         ~'save-e *err*
+         ~'os (writer ~logfile)]
+     (try
+       (set! *out* ~'os)
+       (set! *err* ~'os)
+       (println "###" (str (new java.util.Date)) '~@body)
+       (do ~@body)
+       (finally
+         (println "###" (str (new java.util.Date)) '~@body)
+         (.close ~'os)
+         (set! *out* ~'save-o)
+         (set! *err* ~'save-e)))))
+
+
 ;;(basename "lda-model.ser")
 ;;(with-file-output-stream  "blah.blah.txt" (fn [os] (.println os "blah")))

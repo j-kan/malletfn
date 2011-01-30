@@ -266,7 +266,7 @@
    ["hentoff"]    [0.1  0.1  5.0  1.0]
    ["stewart"]    [3.0  3.0  0.1  3.0]})
 
-(def num-docs 10)
+(def num-docs 5)
 (def eta      8)
 (def symmetric-alpha 1.0)
 (def symmetric-beta  0.25)
