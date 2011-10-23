@@ -213,7 +213,7 @@
 
   (print-features (.getClassifier (first sma)))
 
-  (with-output-log "doblah.log" 
+  (w-output-log "doblah.log" 
     (println "blah"))
   
   (macroexpand  
@@ -231,6 +231,7 @@
             (set! *out* save-o)
             (set! *err* save-e))))))
 
+  
   (defmacro with-output-log 
     [logfile & body]
     `(let [~'save-o *out*
@@ -248,6 +249,14 @@
            (set! *err* ~'save-e)))))
 
 
+  (defmacro w-output-log 
+    [logfile & body]
+    `(fun-with-output-log ~logfile
+       (fn []
+         (println "###" (str (new java.util.Date)) '~@body)
+         (do ~@body)
+         (println "###" (str (new java.util.Date)) '~@body))))
+  
 
   (def dmro (test-sma dmr-synth-corpus))
 
