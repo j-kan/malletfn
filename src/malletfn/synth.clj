@@ -7,7 +7,8 @@
 
 ;(set! *warn-on-reflection* true)
 
-(def *randoms* (new Randoms 90210))
+(def ^:dynamic *randoms* (new Randoms 90210))
+
 
 (defstruct discrete  :type :pp)
 (defstruct dirichlet :type :pp :magnitude)
