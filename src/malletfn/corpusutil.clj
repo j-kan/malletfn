@@ -91,24 +91,28 @@
   "Adapts two parallel Clojure sequences, 
    the first containing data and the second containing features, 
    to work as a Mallet Instance iterator"
-  [data-seq features-seq]
-  (let [state (ref (seq (interleave data-seq features-seq)))]
-    (reify java.util.Iterator
+  ([data-and-features-seq]
+    (let [state (ref (seq data-and-features-seq))]
+      (reify java.util.Iterator
 
-      (hasNext [this] 
-        (not (empty? @state)))
+        (hasNext [this] 
+                 (not (empty? @state)))
 
-      (next [this] 
-        (let [[data features & cdr] @state
-              str-data              (apply str (interpose " " data))
-              str-features          (apply str (interpose " " features))]
-          (dosync (ref-set state cdr))
-          ;(println (cons :doc data) (cons :features features))
-          (new cc.mallet.types.Instance str-data str-features nil str-features)))
+        (next [this] 
+              (let [[[data features] & cdr] @state
+                    str-data                (apply str (interpose " " data))
+                    str-features            (apply str (interpose " " features))]
+                (dosync (ref-set state cdr))
+                ;(println (cons :doc data) (cons :features features))
+                (new cc.mallet.types.Instance str-data str-features nil str-features)))
 
-      (remove [this] 
-        (let [[_ _ & cdr] @state]
-          (dosync (ref-set state cdr)))))))
+        (remove [this] 
+                (let [[_ _ & cdr] @state]
+                  (dosync (ref-set state cdr)))))))
+  
+  ([data-seq features-seq]
+    (mallet-iterator-with-features 
+      (partition 2 (interleave data-seq features-seq)))))
 
 
 

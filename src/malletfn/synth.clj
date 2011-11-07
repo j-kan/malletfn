@@ -1,9 +1,8 @@
 (ns malletfn.synth
- ; (:use clojure.contrib.seq)
   (:use     malletfn.corpusutil)
   (:import (cc.mallet.types Alphabet))
   (:import (cc.mallet.types LabelAlphabet))
-  (:import (cc.mallet.util Randoms)))
+  (:import (cc.mallet.util  Randoms)))
 
 ;(set! *warn-on-reflection* true)
 
@@ -13,7 +12,7 @@
 (defstruct discrete  :type :pp)
 (defstruct dirichlet :type :pp :magnitude)
 
-(defn make-mallet-dirichlet 
+(defn- make-mallet-dirichlet 
   "a dirichlet distribution based on the mallet Dirichlet class"
   [p]
   (new cc.mallet.types.Dirichlet p))
@@ -99,13 +98,14 @@
 
 
 (defn sample-theta-with-features [feature-distribution]
-  (let [{ features :features
-          alphas   :alphas   } (sample-from feature-distribution)
+  (let [{features :features
+         alphas   :alphas   } (sample-from feature-distribution)
         dirichlet-alpha (make-dirichlet alphas)]
     (assoc (sample-from dirichlet-alpha) :features features)))
 
-(defn sample-thetas-with-features [feature-distribution]
+(defn sample-thetas-with-features
   "(lazily) sample an infinite sequence of multinomials from a dirichlet subject to the given feature distribution"
+  [feature-distribution]
   (repeatedly #(sample-theta-with-features feature-distribution)))
 
 
@@ -151,7 +151,8 @@
 (defn sample-docs-zs 
   "sample topic indices for all the words in a corpus of documents.
    The document length is sampled from a Poisson distribution with parameter eta.
-   The thetas can be defined lazily."
+   The thetas can be defined lazily, in which case the corpus is an infinitely long 
+   sequence of documents."
   [thetas eta]
   (map (fn [theta doc-length] (sample-doc-zs theta doc-length)) 
        thetas
@@ -177,87 +178,88 @@
   [ws alphabet]
   (map #(.lookupObject alphabet %) ws))
 
-(defn sample-corpus-as-words [topics num-docs eta symmetric-alpha symmetric-beta]
-    (let [num-topics (count topics)
-          alphabet   (make-alphabet (apply concat topics))
-          num-types  (.size alphabet)              ;(def num-types  (count (set (apply concat topics))))
-          thetas     (sample-thetas-with-symmetric-alpha num-topics num-docs symmetric-alpha)
-          phis       (sample-phis topics alphabet symmetric-beta)
-          [wws zzs]  (sample-corpus-indices eta thetas phis)]
-      (map #(ws2words % alphabet)  
-           (sample-corpus-indices eta thetas phis))))
 
-(defn sample-corpus-as-words-with-features [topics num-docs eta feature-distribution symmetric-beta]
-    (let [num-topics (count topics)
-          alphabet   (make-alphabet (apply concat topics))
-          num-types  (.size alphabet)              ;(def num-types  (count (set (apply concat topics))))
-          thetas     (take num-docs (sample-thetas-with-features feature-distribution))
-          features   (map :features thetas)
-          phis       (sample-phis topics alphabet symmetric-beta)
-          [wws zzs]  (sample-corpus-indices eta thetas phis)]
-      [(map #(ws2words % alphabet) wws)
-       features
-       zzs] ))
+(defn sample-corpus-as-words 
+  "sample an infinitely long corpus of documents, 
+   where the documents are represented as sequences of words"
+  
+  [{:keys [topics eta symmetric-alpha symmetric-beta] 
+    :or {eta 20
+         symmetric-alpha 1.0
+         symmetric-beta  0.25}}] 
+  (let [alphabet   (make-alphabet (apply concat topics))
+        thetas     (sample-thetas-with-symmetric-alpha (count topics) symmetric-alpha)
+        phis       (sample-phis topics alphabet symmetric-beta)
+        [wws zzs]  (sample-corpus-indices eta thetas phis)]
+    (map #(ws2words % alphabet) wws)))
 
-(defn derive-doc-features [doc-as-words]
-  (map (fn [[i cnt]] (str (char (+ i (int \a))))) 
-    (filter (fn [[i cnt]] (> cnt 3)) 
-      (seq
-        (zipmap 
-          (range 26) 
-          (vec-frequencies (vec (map #(round-int 5 (- (int (first (seq %))) (int \a))) 
-                                     doc-as-words)) 26))))))
+
+(defn sample-corpus-as-words-with-features
+  "sample an infinitely long corpus of documents, 
+   where the documents are represented as sequences of words and associated features"
+  
+  [{:keys [topics eta feature-map symmetric-beta] 
+    :or {eta 20
+         symmetric-beta  0.25}}] 
+  (let [alphabet   (make-alphabet (apply concat topics))
+        thetas     (sample-thetas-with-features (make-feature-distribution feature-map))
+        phis       (sample-phis topics alphabet symmetric-beta)
+        [wws zzs]  (sample-corpus-indices eta thetas phis)]
+    (partition 3 (interleave 
+                   (map #(ws2words % alphabet) wws)
+                   (map :features thetas)
+                   zzs))))
+
+(defn- filter-out-topic-assignments 
+  [words-features-tas] (map butlast words-features-tas))
+
 
 (defn make-corpus-instance-list-with-features
- 
-  ([words features] 
-		(make-instance-list 
-		  (make-instance-pipe
-		    (new cc.mallet.pipe.TargetStringToFeatures)
-				(new cc.mallet.pipe.Input2CharSequence)
-				(new cc.mallet.pipe.CharSequence2TokenSequence)
-				(new cc.mallet.pipe.TokenSequence2FeatureSequence))
-		  (mallet-iterator-with-features words features)))
-
-  ([[words features]] 
-      (make-corpus-instance-list-with-features words features))
-
-  ([topics num-docs eta feature-distribution symmetric-beta]
-    (let [[words features _] (sample-corpus-as-words-with-features 
-                               topics num-docs eta feature-distribution symmetric-beta)]
-      (make-corpus-instance-list-with-features words features))))
-
-
-(defn make-corpus-instance-list
- 
-  ([words] 
-    (make-corpus-instance-list-with-features 
-      words
-      (map derive-doc-features words)))
-
-  ([topics num-docs eta symmetric-alpha symmetric-beta]
-      (make-corpus-instance-list 
-        (sample-corpus-as-words topics num-docs eta symmetric-alpha symmetric-beta))))
-
-
-(def topics 
-  (map #(sort (seq (.split % "\\s+")))  
-    [ "eggplant artichoke tomato onion cucumber carrot asparagus zucchini broccoli lettuce cabbage cauliflower spinach avocado potato leek kale basil arugula radicchio"
-      "soap toothbrush towel bath slippers shampoo razor robe floormat icebucket pillow lotion conditioner tissue toilet blowdryer mirror"
-      "piano violin keyboard flute trumpet organ cello saxophone banjo clarinet recorder oboe cornet sopranino tympani bassoon euphonium piccolo daxophone stritch manzello"
-      "red purple green black blue white brown pink yellow gray orange silver gold navy grey beige bronze tan tomato carrot turquoise bone mauve"]))
-
-(def topics 
-  (map #(sort (seq (.split % "\\s+")))  
-    [ "eggplant artichoke tomato onion cucumber" ; carrot asparagus zucchini broccoli lettuce cabbage cauliflower spinach avocado potato leek kale basil arugula radicchio"
-      "soap toothbrush towel bath slippers"      ; shampoo razor robe floormat icebucket pillow lotion conditioner tissue toilet blowdryer mirror"
-      "piano violin keyboard flute trumpet"      ; organ cello saxophone banjo clarinet recorder oboe cornet sopranino tympani bassoon euphonium piccolo daxophone stritch manzello"
-      "red purple green black blue"              ; white brown pink yellow gray orange silver gold navy grey beige bronze tan tomato carrot turquoise bone mauve"
-      ]))
+  "turn a seq of pairs of words and features into a mallet instance list"
   
+  ([words features]     ;  [[words1 words2 ...] [features1 features2 ... ]]
+    (make-corpus-instance-list-with-features 
+      (partition 2 (interleave words features))))
+
+  ([words-and-features] ;  [[words1 features1] [words2 features2] ...]
+    (make-instance-list 
+      (make-instance-pipe
+        (new cc.mallet.pipe.TargetStringToFeatures)
+        (new cc.mallet.pipe.Input2CharSequence)
+        (new cc.mallet.pipe.CharSequence2TokenSequence)
+        (new cc.mallet.pipe.TokenSequence2FeatureSequence))
+      (mallet-iterator-with-features words-and-features))))
 
 
-(def feature-map
+(defn make-dmr-synth-corpus
+  [topics feature-map num-docs]
+  (let [generator     (sample-corpus-as-words-with-features 
+                        {:topics topics 
+                         :feature-map feature-map})
+        instance-list (make-corpus-instance-list-with-features 
+                        (take num-docs (filter-out-topic-assignments generator))) ]
+    {:type       :dmr-synth-corpus
+     :corpus     instance-list
+     :num-topics (count topics)}))
+
+
+
+(def full-topics 
+  (map #(sort (seq (.split % "\\s+")))  
+       ["eggplant artichoke tomato onion cucumber carrot asparagus zucchini broccoli lettuce cabbage cauliflower spinach avocado potato leek kale basil arugula radicchio"
+        "soap toothbrush towel bath slippers shampoo razor robe floormat icebucket pillow lotion conditioner tissue toilet blowdryer mirror"
+        "piano violin keyboard flute trumpet organ cello saxophone banjo clarinet recorder oboe cornet sopranino tympani bassoon euphonium piccolo daxophone stritch manzello"
+        "red purple green black blue white brown pink yellow gray orange silver gold navy grey beige bronze tan tomato carrot turquoise bone mauve"]))
+
+(def abbreviated-topics 
+  (map #(sort (seq (.split % "\\s+")))  
+       ["eggplant artichoke tomato onion cucumber" ; carrot asparagus zucchini broccoli lettuce cabbage cauliflower spinach avocado potato leek kale basil arugula radicchio"
+        "soap toothbrush towel bath slippers"      ; shampoo razor robe floormat icebucket pillow lotion conditioner tissue toilet blowdryer mirror"
+        "piano violin keyboard flute trumpet"      ; organ cello saxophone banjo clarinet recorder oboe cornet sopranino tympani bassoon euphonium piccolo daxophone stritch manzello"
+        "red purple green black blue"              ; white brown pink yellow gray orange silver gold navy grey beige bronze tan tomato carrot turquoise bone mauve"
+        ]))
+  
+(def author-feature-map
   {["pollan"]     [5.0  0.1  0.1  2.0]
    ["scriabin"]   [0.1  0.1  5.0  1.0]
    ["koolhaas"]   [0.1  1.0  0.1  3.0]
@@ -267,36 +269,8 @@
    ["hentoff"]    [0.1  0.1  5.0  1.0]
    ["stewart"]    [3.0  3.0  0.1  3.0]})
 
-(def num-docs 5)
-(def eta      8)
-(def symmetric-alpha 1.0)
-(def symmetric-beta  0.25)
-
-
-(def feature-distribution (make-feature-distribution feature-map))
-
-(defn corpus-as-words      [] (sample-corpus-as-words topics num-docs eta symmetric-alpha symmetric-beta))
-(defn corpus-instance-list [] (make-corpus-instance-list (corpus-as-words)))
-
-(defn corpus-as-words-with-features      [] 
-  (sample-corpus-as-words-with-features topics num-docs eta feature-distribution symmetric-beta))
-
-(defn corpus-instance-list-with-features []
-  (let [[words features zzs] (corpus-as-words-with-features)] 
-    [(make-corpus-instance-list-with-features words features) zzs]))
-
-(defn make-dmr-synth-corpus []
-  (let [[corpus tas]      (corpus-instance-list-with-features)
-        num-topics        (count topics)
-        topic-assignments (map (fn [instance ta] 
-                                 {:type             :topic-assignment
-                                  :instance         instance
-                                  :topic-assignment ta})
-                            	corpus tas)]
-    {:type :dmr-synth-corpus
-     :corpus corpus
-     :num-topics num-topics
-     :topic-assignments topic-assignments}))
+(defn dmr-synth-corpus [num-docs] 
+  (make-dmr-synth-corpus full-topics author-feature-map num-docs))
 
 ;;;;;;;;;;;;
 
@@ -312,84 +286,3 @@
   (.lookupIndices alphabet 
     (to-array topic-vocab)
     false))
-
-
-
-
-(comment
-  (in-ns 'malletfn.synth)
-
-  (def alpha (take num-topics (repeat (double 0.01))))
-  (def beta  (take num-types  (repeat (double 0.01))))  ; (comment (/ eta num-types))
-
-  (def dirichlet-alpha (make-dirichlet (double-array alpha)))
-  (def dirichlet-beta  (make-dirichlet (double-array beta)))
-
-  (make-dirichlet (double-array (:pp (make-discrete [11 111 11 11]))))
-
-  
-  (take 10 (sample-thetas-with-symmetric-alpha 4 10.0))
-  (take 3  (sample-thetas-with-features feature-distribution))
-  
-  (def author (first (sample-thetas-with-features feature-distribution)))
-  (take 10 (repeatedly #(sample-from author)))
-
-  (map :features (take 10  (sample-thetas-with-features feature-distribution)))
-
-  (take 3 (sample-docs-zs (sample-thetas-with-symmetric-alpha 4 200.0) 7))
-
-  (take 10 (sample-docs-zs (sample-thetas-with-features feature-distribution) 7))
-
-  (def num-topics (count topics))
-  (def num-types  (count (set (apply concat topics))))
-  (def alphabet (make-alphabet (apply concat topics)))
-  (def thetas   (sample-thetas-with-features feature-distribution))
-  (def features (map :features thetas))
-  
-  (first thetas)
-  (first features)
-  
-  (def phis     (sample-phis topics alphabet symmetric-beta))
- 
-  ;(def corpus (corpus-as-words-with-features))
-  ;(def dmr-instance-list (corpus-instance-list-with-features))
-  
-  (def corpus-words (corpus-as-words-with-features))
-  (def corpus-with-topics (corpus-instance-list-with-features))
-  (def corpus (first corpus-with-topics))
-  (def corpus-topic-assignments (second corpus-with-topics))
-  
-  (use 'clojure.contrib.seq-utils)
-
-    (doc refer)
-  (indexed corpus-topic-assignments)
-  (def inst1 (first corpus))
-  
-  (map (fn [a b] (+ a b)) [1 2 3] [4 5 6])
-  
-  (def dmr-synth-corpus (make-dmr-synth-corpus))
-  
-  (.getTarget (:instance (first (:topic-assignments dmr-synth-corpus))))
-  (:topic-assignment (first (:topic-assignments dmr-synth-corpus)))
-  
-  (defn token-alphabet [corpus]
-    (-> inst1 .getData .getAlphabet))
-  
-  (defn feature-alphabet [corpus]
-    (-> inst1 .getTarget .getAlphabet))
-  
-  (defn topic-alphabet [num-topics]
-    (let [alphabet (new cc.mallet.types.LabelAlphabet)]
-      (doseq [i (range num-topics)] 
-        (.lookupIndex alphabet (str "topic" i)))
-      alphabet))
-
-  (-> inst1 .getTarget)
-  (-> inst1 .getSource)
-  (-> inst1 .getName)
-  
-  (token-alphabet corpus)
-  (feature-alphabet corpus)
-  (.size (topic-alphabet 4))
-  
- )
