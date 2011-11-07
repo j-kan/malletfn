@@ -158,8 +158,8 @@
   (dmr-instance-list (or (:query model) "")))
 
 
-(defmethod make-model-params DMRTopicModel [params]
-  (let [options    (merge lda-defaults params)
+(defmethod make-model-options DMRTopicModel [args]
+  (let [options    (merge lda-default-options args)
         rootname   (or (:rootname options) (basename (:corpus options)))
         outputdir  (format "%s-%d-iterations-%d-topics-%d-threads-dmr-jkan" 
                            rootname (:iterations options) (:topics options) (:threads options))]
@@ -167,28 +167,29 @@
 
 
 (defn make-dmr [& args]
-  (let [params      (make-model-params (assoc (apply hash-map args) :class DMRTopicModel))
-        dmr         (new DMRTopicModel (:topics params))
+  (let [options     (make-model-options (assoc (apply hash-map args) :class DMRTopicModel))
+        dmr         (new DMRTopicModel (:topics options))
         output-file (fn [filename]
-                      (let [dir (new File (:outputdir params))]
+                      (let [dir (new File (:outputdir options))]
                         (.mkdirs dir)
                         (new File dir filename)))]
     (doto dmr
       (.setRandomSeed       90210)
       ;(.setProgressLogFile  (output-file "progress.txt"))
       (.setTopicDisplay     100 20)
-      (.setNumIterations    (:iterations params))
+      (.setNumIterations    (:iterations options))
       (.setOptimizeInterval 20)
       (.setBurninPeriod     20)
-      (.setNumThreads       (:threads params))
-      (.setNumBatches       8)
-      (.setInitialStep      0.001)
-      (.setMetaStep         0.002))
-    (merge params {:inferencer dmr :output-file-fn output-file})))
+      (.setNumThreads       (:threads options))
+      ;(.setNumBatches       8)
+      ;(.setInitialStep      0.001)
+      ;(.setMetaStep         0.002)
+      )
+    (merge options {:parameter-estimator dmr :output-file-fn output-file})))
 
 (defmethod write-model-results DMRTopicModel [model]
   (let [output-file (:output-file-fn model)
-        dmr         (:inferencer model)]
+        dmr         (:parameter-estimator model)]
     (doto dmr
       (.printTopWords        (output-file "topic-keys.txt") 20 false)
       (.printDocumentTopics  (output-file "doc-topics.txt"))
@@ -200,8 +201,8 @@
 
 
 (defn load-dmr [& args] 
-  (let [params (apply hash-map args)
-        dmr    (DMRTopicModel/read (File. (:outputdir params) "dmr-model.ser"))]
+  (let [options (apply hash-map args)
+        dmr     (DMRTopicModel/read (File. (:outputdir options) "dmr-model.ser"))]
     dmr))
 
 (defn run-dmr []
@@ -223,79 +224,3 @@
                        :threads 1)
              corpus))
 
-
-
-;;------- repl testing bits ----------;;
-
-(comment
-  (in-ns 'malletfn.dmrtopics)
-  
-  (def corpus-with-topics (corpus-instance-list-with-features))
-  (def corpus (first corpus-with-topics))
-  (def dmr (run-synth-dmr corpus))
-
-  (def dmr (load-dmr :corpus "resources/dmr-full-by-decade.ser" :iterations 1000 :topics 8 :threads 1))
-  (def dmr (run-dmr))	
-  (get-feature-weights-sorted (.getRegressionParameters dmr))
-  (write-features-sorted dmr "feature-wts.txt")
-
-  (def maxent (.getRegressionParameters dmr))
-  (.getParameters maxent)
-  (.getNumParameters maxent)
-
-  (import (cc.mallet.topics DMRTopicModel))
-  
-  (def viol (malletfn.mongo/mongo-query 
-              rhinoplast-bio  
-              "{'content' : /\\bviolin\\b/}" 
-              ["name" "content"]
-              (fn [item]
-                [(.get item "name") (date-features (or (.get item "content") ""))])))
-  
-  (take 10 viol)
-	;(def dmr-query "{'name' : /^Sun/}")
-	;(def dmr-list (dmr-instance-list "{'name' : /^Sun/}"))
-	;(.getTarget (nth dmr-list 5))
-	(def xper 
-   (malletfn.dmrtopics/dmr-instance-list "{'content' : /\\bexperimental\\b/}"))
- 
-  (-> (second xper) .getData)
- 
-  ;"{'content' : /\\bexperimental\\b/}"
-	; (let [instance-list (dmr-instance-list "{'name' : /^The /}")]
- 
-   (def features (malletfn.mongo/mongo-query 
-                   malletfn.topicmodel/rhinoplast-bio "{'content' : /\\bexperimental\\b/}" 
-                   ["name" "content"]
-                   (fn [item]
-                     (let [name    (.get item "name")
-                           summary (or (.get item "content") "")
-                           years   (sort (years-from-summary summary))]
-                       [name years]))))
-
-   
-   (def years (map second features))
-   (first features)
-   (nth features  3)
-   (take 4 years)
-   
-   (defn mean-and-variance [s]
-     (let [n    (count s)
-           mean (/ (apply + s) n)
-           sq-m (/ (apply + (map #(* % %) s)) n)
-           var  (- sq-m (* mean mean))]
-       [n (double mean) (double var)]))
-   
-   (mean-and-variance (first years))
-   (map (fn [[name years]] [name (mean-and-variance years)]) (take 20 features))
-   
-   (count (first years))
-   (apply + (first years))
-   
-       (decades-from-years [1987 1843])
-        
-   ;(use 'clojure.contrib.accumulators)
-   ;(mean-variance (first years)))
-   
-   
-   )

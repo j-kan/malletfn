@@ -64,14 +64,14 @@
 
 
 
-(defstruct lda-params :class :corpus :topics :iterations :threads)
-(def lda-defaults { :iterations 1000
-                    :threads    1 })
+(defstruct lda-options :class :corpus :topics :iterations :threads)
+(def lda-default-options {:iterations 1000
+                          :threads    1 })
 
-(defmulti make-model-params :class)
+(defmulti make-model-options :class)
 
-(defmethod make-model-params ParallelTopicModel [params]
-  (let [options    (merge lda-defaults params)
+(defmethod make-model-options ParallelTopicModel [args]
+  (let [options    (merge lda-default-options args)
         rootname   (or (:rootname options) (basename (:corpus options)))
         alpha      (or (:alpha options) (/ 50.0   (:topics options)))
         beta       (or (:beta  options)  0.01)
@@ -80,24 +80,24 @@
     (merge options { :rootname  rootname :alpha alpha :beta beta :outputdir outputdir })))
 
 
-(defstruct topic-model :inferencer :params :output-file-fn)
+(defstruct topic-model :parameter-estimator :options :output-file-fn)
 
 (defn make-model [& args]
-  (let [params      (make-model-params (assoc (apply hash-map args) :class ParallelTopicModel))
-        lda         (new ParallelTopicModel (:topics params) (:alpha params) (:beta params))
+  (let [options     (make-model-options (assoc (apply hash-map args) :class ParallelTopicModel))
+        lda         (new ParallelTopicModel (:topics options) (:alpha options) (:beta options))
         output-file (fn [filename]
-                      (let [dir (new File (:outputdir params))]
+                      (let [dir (new File (:outputdir options))]
                         (.mkdirs dir)
                         (new File dir filename)))]
     (doto lda
       (.setRandomSeed       90210)
       ;(.setProgressLogFile  (output-file "progress.txt"))
       (.setTopicDisplay     100 20)
-      (.setNumIterations    (:iterations params))
+      (.setNumIterations    (:iterations options))
       (.setOptimizeInterval 50)
       (.setBurninPeriod     200)
-      (.setNumThreads       (:threads params)))
-    (merge params {:inferencer lda :output-file-fn output-file})))
+      (.setNumThreads       (:threads options)))
+    (merge options {:parameter-estimator lda :output-file-fn output-file})))
 
 
 (defmulti model-instance-list-from-mongo :class)
@@ -123,19 +123,19 @@
       (load-from-mongo model file))))
 
 (defn add-model-instances
-  ([model]               (.addInstances (:inferencer model) (load-model-instances model)))
-  ([model instance-list] (.addInstances (:inferencer model) instance-list)))
+  ([model]               (.addInstances (:parameter-estimator model) (load-model-instances model)))
+  ([model instance-list] (.addInstances (:parameter-estimator model) instance-list)))
 
 
 
 (defn estimate-model [model]
-  (.estimate (:inferencer model)))
+  (.estimate (:parameter-estimator model)))
 
 (defmulti write-model-results :class)
 
 (defmethod write-model-results ParallelTopicModel [model]
   (let [output-file (:output-file-fn model)
-        lda         (:inferencer model)]
+        lda         (:parameter-estimator model)]
       (doto lda
         (.printTopWords        (output-file "topic-keys.txt") 20 false)
         (.printDocumentTopics  (output-file "doc-topics.txt"))
@@ -145,13 +145,13 @@
 
 (defn run-model 
   ([m] 
-      (println (type (:inferencer m)))
+      (println (type (:parameter-estimator m)))
       (add-model-instances m)
       (estimate-model m) 
       (write-model-results m)
       m)
   ([m instance-list]
-      (println (type (:inferencer m)))
+      (println (type (:parameter-estimator m)))
       (add-model-instances m instance-list)
       (estimate-model m) 
       (write-model-results m)
@@ -184,29 +184,31 @@
              corpus))
 
 (defn run-synth-lda-with-param-search []
-  (let [corpus (corpus-instance-list-with-features)
+  (let [corpus (dmr-synth-corpus 5000)
         alphas (range 0.5 3.5 1.0)
         betas  (range 0.25 1.25 0.25)]
     (time
       (map (fn [beta] 
              (map (fn [alpha] 
-                      (do (run-synth-lda-with-alpha-beta corpus alpha beta)
+                      (do (run-synth-lda-with-alpha-beta (:corpus corpus) alpha beta)
                           [alpha beta])) 
                   alphas)) 
            betas))))
 
 
 
-;;------- testing ----------;;
+;;------- testing (repl) ----------;;
 
 (comment
   ;(def lda (make-lda "resources/docs.ser" 1000 8))
   ;(def lda (make-lda "resources/rhinoplastfm.ser" 1000 16))
   (def lda (run-lda))
-  (def corpus (corpus-instance-list-with-features))
-  (def lda (run-synth-lda corpus))
+  (def corpus (dmr-synth-corpus 1000))
+  (def lda (run-synth-lda (:corpus corpus)))
   (run-synth-lda-with-param-search)
-)
+  (def inferencer  (.getInferencer (:parameter-estimator lda)))
+  '())
+
 
 ;;------- doc topic assignment ----------;;
 
