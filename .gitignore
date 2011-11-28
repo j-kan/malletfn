@@ -3,9 +3,12 @@ classes
 bin
 *.diff
 *.log
+*.csv
 *.lck
+*.RData
 .cake
 archive
 target
+trace
 ccw.repl.cmdhistory.prefs
 worksheet.*
