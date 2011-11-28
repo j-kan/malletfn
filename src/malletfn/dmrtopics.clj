@@ -1,12 +1,10 @@
 (ns malletfn.dmrtopics
-  (:require malletfn.mongo)  
   (:use     malletfn.topicmodel)
   (:use     malletfn.fileutil)
   (:use     malletfn.corpusutil)
   (:use     malletfn.synth)
   (:import (java.io File))
   (:import (cc.mallet.types FeatureSequence FeatureVector Instance InstanceList Alphabet))
-  (:import (com.mongodb DBCollection DBCursor DBObject Mongo MongoException))
   ;(:import (cc.mallet.topics DMRTopicModel)))
   (:import (edu.umass.cs.mallet.users.kan.topics DMRTopicModel)))
 
@@ -105,57 +103,7 @@
     (new cc.mallet.pipe.TokenSequence2FeatureSequence)))
 
 
-(defn years-from-summary [summary]
-  (map #(Integer/parseInt %) 
-       (re-seq #"\b(?:1[5-9]\d\d)|(?:20[01]\d)\b" (or summary ""))))
 
-(defn decades-from-years [s]
-  (set (map (partial round-int 10) s)))
-
-(defn epoch-from-year [year]
-  (if (> year 1900)
-    [(round-int 10 year)  (+ 5  (round-int 10  (- year 5)))]
-    [(round-int 100 year) (+ 50 (round-int 100 (- year 50)))]))
-
-(defn beta-date-features-for-year [year]
-  (letfn [(df [min-year max-year year]
-            (let [d (/ (- year min-year) (- max-year min-year))]
-              [(format "d_%d_a=%f" min-year (java.lang.Math/log d))
-               (format "d_%d_b=%f" min-year (java.lang.Math/log (- 1 d)))]))]
-    (apply concat 
-      (for [min-year [1500 1900 1960] :when (> year min-year)]
-        (df min-year 2010 year)))))
-
-(defn features-from-years [extractor s]
-   (seq2str (set (flatten (map extractor s)))))
-
-(defn beta-date-features [summary]
-  (features-from-years beta-date-features-for-year (years-from-summary summary)))
-
-(defn date-features [summary]
-  (features-from-years epoch-from-year (years-from-summary summary)))
-
-
-(defn dmr-instance-from-mongo-result
-  "assumes that your mongo query includes fields 'name' and 'content'"
-  [item]
-  (let [name    (.get item "name")
-        summary (or (.get item "content") "")
-        years   (date-features summary)]
-    (new Instance summary years name name)))
-
-(defn dmr-instance-list
-  "builds a DMR-ready Mallet InstanceList from a mongo query"
-   [query]
-   (instance-list-from-mongo 
-     (dmr-instance-pipe)
-     (malletfn.mongo/mongo-query 
-       rhinoplast-bio query 
-       ["name" "content"]
-       dmr-instance-from-mongo-result)))
-
-(defmethod model-instance-list-from-mongo DMRTopicModel [model file] 
-  (dmr-instance-list (or (:query model) "")))
 
 
 (defmethod make-model-options DMRTopicModel [args]

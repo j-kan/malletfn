@@ -4,7 +4,7 @@
     :author "jkan" }
 
   (:use clojure.test)
-  (:import (cc.mallet.types Alphabet))
+  (:import (cc.mallet.types Alphabet FeatureSequence Instance))
   (:import (cc.mallet.util Randoms)))
 
 
@@ -52,6 +52,25 @@
   (* base (int (/ n base))))
 
 
+(defn vectorized-sum [& vs]
+  (map #(apply + %) (apply map vector vs)))
+
+(defn vectorized-mean [& vs]
+  (let [n (count vs)]
+    (map #(/ % n) (apply vectorized-sum vs))))
+
+
+(defmulti word-seq class)
+
+(defmethod word-seq FeatureSequence [fs]
+  (let [alphabet (.getAlphabet fs)]
+    (map #(.lookupObject alphabet %) (.getFeatures fs))))
+
+(defmethod word-seq Instance [instance]
+  (word-seq (.getData instance)))
+
+
+
 (defn make-alphabet [words]
   (new Alphabet (to-array words)))
 
@@ -66,6 +85,16 @@
   (new cc.mallet.pipe.SerialPipes
     (into-array cc.mallet.pipe.Pipe pipes)))
 
+
+
+(defstruct mallet-instance :data :target :name :source)
+
+(defn map-over-map-values
+  "sort of like map over all the values of a hashmap: takes in 
+   a hashmap and a function, applies the function to all the values,
+   and returns a hashmap with the same keys and the new values"
+  [m f]
+  (reduce #(update-in %1 [%2] f) m (keys m)))
 
 
 (defn mallet-iterator 
@@ -85,6 +114,40 @@
       (remove [this] 
         (let [[car & cdr] @state]
           (dosync (ref-set state cdr)))))))
+
+
+(defn mallet-instance-iterator 
+  "Adapts a clojure sequence where each element is a mallet-instance struct as defined above
+   to work as a Mallet Instance iterator."
+  ([instance-seq]
+    (let [state (ref (seq instance-seq))]
+      (reify java.util.Iterator
+
+        (hasNext [this] 
+                 (not (empty? @state)))
+
+        (next [this] 
+              (let [[instance & cdr] @state
+                    str-map          (map-over-map-values instance #(apply str (interpose " " %)))]
+                (dosync (ref-set state cdr))
+                ;(println (cons :doc data) (cons :features features))
+                (new cc.mallet.types.Instance 
+                     (:data str-map) 
+                     (:target str-map) 
+                     (:name str-map) 
+                     (:source str-map))))
+
+        (remove [this] 
+                (let [[_ _ & cdr] @state]
+                  (dosync (ref-set state cdr)))))))
+  
+  ([data & other-seqs]
+    (mallet-instance-iterator 
+      (partition 4 (apply interleave 
+                          (take 4 (concat [data] 
+                                          other-seqs 
+                                          (repeat 4 (repeat '())))))))))
+
 
 
 (defn mallet-iterator-with-features 
@@ -115,6 +178,19 @@
       (partition 2 (interleave data-seq features-seq)))))
 
 
+(defn partition-instance-list
+  "partition an instance list proportionally; 
+   returns a seq of instance lists of the same length as the proportions seq"
+  
+  ([instance-list proportions randoms]
+    (.split instance-list randoms
+      (double-array (map #(/ % (reduce + proportions)) 
+                         proportions))))
+
+  ([instance-list proportions]
+    (.split instance-list
+      (double-array (map #(/ % (reduce + proportions)) 
+                         proportions)))))
 
 
 (deftest test-mallet-iterator

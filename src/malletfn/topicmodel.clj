@@ -1,67 +1,15 @@
 (ns malletfn.topicmodel
 
-  ^{:doc    "Runs a Mallet ParallelTopicModel using Clojure.  Includes some code for pulling instance lists out of mongodb."
+  ^{:doc    "Runs a Mallet ParallelTopicModel using Clojure."
     :author "jkan" }
 
-  (:require malletfn.mongo)  
   (:use     malletfn.fileutil)  
   (:use     malletfn.corpusutil)  
   (:use     malletfn.synth)
   (:import (java.io File))
   (:import (cc.mallet.types FeatureSequence FeatureVector Instance InstanceList Alphabet))
-  (:import (com.mongodb DBCollection DBCursor DBObject Mongo MongoException))
 ;  (:import (cc.mallet.topics ParallelTopicModel)))
   (:import (edu.umass.cs.mallet.users.kan.topics ParallelTopicModel)))
-
-
-(def extra-stop-words
-  ["href" "http" "www" "music" "fm" "bbcode" "rel" "nofollow" 
-   "artist" "title" "tag" "class" "album" "unknown" "span" 
-   "strong" "em" "track" "ndash" "ul" "ol" "li"])
-
-
-(defn instance-list-from-mongo 
-  ([query-result]
-    (instance-list-from-mongo 
-      (make-instance-pipe
-        (new cc.mallet.pipe.Input2CharSequence)
-        (new cc.mallet.pipe.CharSequenceRemoveHTML) 
-        (new cc.mallet.pipe.CharSequence2TokenSequence "(?:\\p{L}|\\p{N})+")
-        (new cc.mallet.pipe.TokenSequenceLowercase)
-        (.addStopWords 
-          (new cc.mallet.pipe.TokenSequenceRemoveStopwords false false) 
-          (into-array extra-stop-words))
-        (new cc.mallet.pipe.TokenSequence2FeatureSequence))
-      query-result))
-  ([pipe query-result]
-    {:pre  [(and pipe query-result)]}
-    (make-instance-list pipe (mallet-iterator query-result))))
-
-
-(defn- instance-from-mongo-result
-  "assumes that your mongo query includes fields 'name' and 'content'"
-  [item]
-  (let [name    (.get item "name")
-        summary (.get item "content")]
-    (new Instance (or summary name) "" name name)))
-
-(def rhinoplast-bio (malletfn.mongo/mongo-collection "rhinoplast" "bio"))
-(def rhinoplast-query "")
-
-; (make-instance-pipe)
-; (defn make-iterator [])
-
-; (def rhinoplast-query "{'name' : /^Sun/}")
-
-; (map #(.get % "name") (seq rhinoquery-result))
-; (map instance-from-mongo-result (seq rhinoquery-result))
-
-;(defn mongo-connection [dbname collname]
-;  (.getCollection (.getDB (new Mongo) dbname) collname))
-
-;(def instance-list (new cc.mallet.types.InstanceList (make-instance-pipe)))
-;(def instance-iter (new malletfn.pipe.iterator.SeqIterator rhinoquery-result))
-
 
 
 (defstruct lda-options :class :corpus :topics :iterations :threads)
@@ -100,31 +48,8 @@
     (merge options {:parameter-estimator lda :output-file-fn output-file})))
 
 
-(defmulti model-instance-list-from-mongo :class)
-
-(defmethod model-instance-list-from-mongo ParallelTopicModel [model file] 
-  (instance-list-from-mongo 
-    (malletfn.mongo/mongo-query 
-      rhinoplast-bio rhinoplast-query 
-      ["name" "content"]
-      instance-from-mongo-result)))
-
-(defn load-from-mongo [model file] 
-  (let [instance-list (model-instance-list-from-mongo model file)]
-    (serialize-object instance-list file)
-    instance-list))
-
-(defn load-model-instances 
-  "either loads from an existing serialized instance corpus or build it from scratch from a mongo query"
-  [model]
-  (let [file (new File (:corpus model))]
-    (if (.exists file)
-      (InstanceList/load file)
-      (load-from-mongo model file))))
-
-(defn add-model-instances
-  ([model]               (.addInstances (:parameter-estimator model) (load-model-instances model)))
-  ([model instance-list] (.addInstances (:parameter-estimator model) instance-list)))
+(defn add-model-instances [model instance-list] 
+  (.addInstances (:parameter-estimator model) instance-list))
 
 
 
@@ -143,19 +68,12 @@
         (.printState           (output-file "state.gz")))
       (serialize-object lda    (output-file "lda-model.ser"))))
 
-(defn run-model 
-  ([m] 
-      (println (type (:parameter-estimator m)))
-      (add-model-instances m)
-      (estimate-model m) 
-      (write-model-results m)
-      m)
-  ([m instance-list]
-      (println (type (:parameter-estimator m)))
-      (add-model-instances m instance-list)
-      (estimate-model m) 
-      (write-model-results m)
-      m))
+(defn run-model [m instance-list]
+  (println (type (:parameter-estimator m)))
+  (add-model-instances m instance-list)
+  (estimate-model m) 
+  (write-model-results m)
+  m)
 
 
 (defn run-lda []
@@ -167,7 +85,7 @@
 (defn run-synth-lda [corpus]
   (run-model (make-model :rootname "resources/new-synthetic" 
                          :topics 4 
-                         :iterations 1000 
+                         :iterations 5000 
                          :threads 1 
                          :alpha 2.0 
                          :beta 0.5)
@@ -196,17 +114,91 @@
            betas))))
 
 
+;;------- topic inference ----------;;
+
+(defn get-inferencer [lda]
+  (let [inferencer  (.getInferencer (:parameter-estimator lda))]
+    (.setRandomSeed inferencer 90210)
+    inferencer))
+
+(defn write-inferred-distributions 
+  "wrapper for mallet TopicInferencer method, with defaults"
+  [inferencer instances filename & {:keys [iterations sample-interval burn-in doc-topics-threshold doc-topics-max]         
+                                    :or   {iterations 100
+ 								                           sample-interval 10
+								                           burn-in 10
+								                           doc-topics-threshold 0.0
+								                           doc-topics-max -1}}]
+  (.setRandomSeed inferencer 90210)
+  (.writeInferredDistributions 
+    inferencer instances
+    (new java.io.File filename)
+    iterations sample-interval burn-in doc-topics-threshold doc-topics-max))
+
+(defn ^doubles get-sampled-distribution 
+  [inferencer instance & {:keys [iterations sample-interval burn-in]         
+                          :or   {iterations 100
+                                 sample-interval 10
+                                 burn-in 10}}]
+  (.getSampledDistribution inferencer instance iterations sample-interval burn-in))
+
 
 ;;------- testing (repl) ----------;;
 
 (comment
+  (def synth-corpus (dmr-synth-corpus 5000))
+  (def split-corpus (partition-instance-list 
+                      (:corpus synth-corpus) [90 10] *randoms*))
+  (def training-corpus (first split-corpus))
+  (def test-corpus     (last split-corpus))
+  (def lda (run-synth-lda training-corpus))
+  (def inferencer  (get-inferencer lda))
+
+  (def mlda (malletfn.mtopicmodel/run-synth-lda malletfn.topicmodel/training-corpus))
+  (def mlda malletfn.mtopicmodel/mlda)
+  (def minferencer  (get-inferencer mlda))
+  
+  (.getData (first test-corpus))
+  (.getSource (first test-corpus))
+  (.getName (first test-corpus))
+  (.getTarget (first test-corpus))
+  
+  (write-inferred-distributions inferencer test-corpus "test-doc-topics.txt")
+  (write-inferred-distributions inferencer training-corpus "training-doc-topics.txt")
+  
+  (def test-topic-distributions 
+    (map #(seq (get-sampled-distribution inferencer %)) 
+         test-corpus))
+
+  (def test-authors 
+    (map #(.getSource %) test-corpus))
+  
+  
+  (.getSource (first test-corpus))
+  
+  (seq2str (malletfn.corpusutil/word-seq (first test-corpus)))
+    
+  (apply vectorized-mean
+         (take 1000 (repeatedly #(get-sampled-distribution inferencer (first test-corpus) :iterations 100))))
+
+  (apply vectorized-mean
+         (take 100 (repeatedly #(get-sampled-distribution inferencer (first test-corpus) :iterations 1000))))
+
+  (apply vectorized-mean
+         (take 10 (repeatedly #(get-sampled-distribution inferencer (first test-corpus) :iterations 10000))))
+
+  (seq (get-sampled-distribution inferencer (first test-corpus) :iterations 100000))
+
+  (seq (get-sampled-distribution inferencer (second test-corpus)))
+  
+  (take 4 test-topic-distributions)
+  (take 4 test-authors)
+
   ;(def lda (make-lda "resources/docs.ser" 1000 8))
   ;(def lda (make-lda "resources/rhinoplastfm.ser" 1000 16))
   (def lda (run-lda))
-  (def corpus (dmr-synth-corpus 1000))
-  (def lda (run-synth-lda (:corpus corpus)))
   (run-synth-lda-with-param-search)
-  (def inferencer  (.getInferencer (:parameter-estimator lda)))
+  
   '())
 
 

@@ -231,7 +231,25 @@
       (mallet-iterator-with-features words-and-features))))
 
 
-(defn make-dmr-synth-corpus
+(defn- make-mallet-instance-seq [the-seq]
+  (map (fn [[words features tas]] 
+           (struct-map mallet-instance :data words :target features :name tas :source features)) 
+       the-seq))
+
+(defn make-corpus-instance-list
+  "turn a seq of triples of words, features, and topic assignments into a mallet instance list"
+  
+  [the-seq] ;  [[words1 features1 topic-assignmemts1] [words2 features2 topic-assignmemts2] ...]
+  (make-instance-list 
+    (make-instance-pipe
+      (new cc.mallet.pipe.TargetStringToFeatures)
+      (new cc.mallet.pipe.Input2CharSequence)
+      (new cc.mallet.pipe.CharSequence2TokenSequence)
+      (new cc.mallet.pipe.TokenSequence2FeatureSequence))
+    (mallet-instance-iterator (make-mallet-instance-seq the-seq))))
+
+
+(defn make-dmr-synth-corpus-with-features
   [topics feature-map num-docs]
   (let [generator     (sample-corpus-as-words-with-features 
                         {:topics topics 
@@ -242,6 +260,16 @@
      :corpus     instance-list
      :num-topics (count topics)}))
 
+(defn make-dmr-synth-corpus
+  [topics feature-map num-docs]
+  (let [generator     (sample-corpus-as-words-with-features 
+                        {:topics topics 
+                         :feature-map feature-map})
+        instance-list (make-corpus-instance-list 
+                        (take num-docs generator)) ]
+    {:type       :dmr-synth-corpus
+     :corpus     instance-list
+     :num-topics (count topics)}))
 
 
 (def full-topics 
