@@ -143,6 +143,23 @@
   (.getSampledDistribution inferencer instance iterations sample-interval burn-in))
 
 
+;;------- marginal prob estimator ----------;;
+
+(defn get-evaluator [lda]
+  (let [evaluator (.getProbEstimator (:parameter-estimator lda))]
+    (.setRandomSeed evaluator 90210)
+    evaluator))
+
+(defn evaluate-left-to-right 
+  [evaluator instances  & {:keys [iterations num-particles resample?]         
+                           :or   {iterations 100
+                                  num-particles 10
+                                  resample? false}
+                           :as options}]
+  (.evaluateLeftToRight evaluator instances num-particles resample?))
+
+
+
 ;;------- testing (repl) ----------;;
 
 (comment
@@ -153,10 +170,13 @@
   (def test-corpus     (last split-corpus))
   (def lda (run-synth-lda training-corpus))
   (def inferencer  (get-inferencer lda))
+  (def evaluator  (get-evaluator lda))
 
-  (def mlda (malletfn.mtopicmodel/run-synth-lda malletfn.topicmodel/training-corpus))
-  (def mlda malletfn.mtopicmodel/mlda)
-  (def minferencer  (get-inferencer mlda))
+  (def ll-train (evaluate-left-to-right evaluator training-corpus :iterations 1000))
+  (def ll-test  (evaluate-left-to-right evaluator test-corpus :iterations 1000))
+  
+  (/ (apply + ll-train) (count-tokens training-corpus))
+  (/ (apply + ll-test) (count-tokens test-corpus))
   
   (.getData (first test-corpus))
   (.getSource (first test-corpus))
@@ -173,8 +193,6 @@
   (def test-authors 
     (map #(.getSource %) test-corpus))
   
-  
-  (.getSource (first test-corpus))
   
   (seq2str (malletfn.corpusutil/word-seq (first test-corpus)))
     

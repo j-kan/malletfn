@@ -4,7 +4,7 @@
     :author "jkan" }
 
   (:use clojure.test)
-  (:import (cc.mallet.types Alphabet FeatureSequence Instance))
+  (:import (cc.mallet.types Alphabet FeatureSequence Instance InstanceList))
   (:import (cc.mallet.util Randoms)))
 
 
@@ -69,6 +69,17 @@
 (defmethod word-seq Instance [instance]
   (word-seq (.getData instance)))
 
+
+(defmulti count-tokens class)
+
+(defmethod count-tokens FeatureSequence [fs]
+  (.size fs))
+
+(defmethod count-tokens Instance [instance]
+  (count-tokens (.getData instance)))
+
+(defmethod count-tokens InstanceList [instances]
+  (apply + (map count-tokens instances)))
 
 
 (defn make-alphabet [words]
