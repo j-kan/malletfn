@@ -12,8 +12,13 @@
   (:import (edu.umass.cs.mallet.users.kan.topics ParallelTopicModel)))
 
 
-(def lda-default-options {:iterations 1000
-                          :threads    1 })
+(def lda-default-options {:iterations           1000
+                          :threads              1 
+                          :random-seed          90210
+                          :optimize-interval    50
+                          :burn-in              200
+                          :show-topics-interval 100
+                          :show-words-per-topic 20 })
 
 (defmulti make-model-options :class)
 
@@ -29,12 +34,7 @@
 
 (defn make-model [& args]
   (let [{:keys [topics alpha beta outputdir iterations threads random-seed optimize-interval burn-in show-topics-interval show-words-per-topic iteration-trace-fn] 
-         :or   {random-seed 90210
-                optimize-interval 50
-                burn-in 200
-                show-topics-interval 100
-                show-words-per-topic 20
-                iteration-trace-fn (fn [model iteration] 
+         :or   {iteration-trace-fn (fn [model iteration] 
                                      (when (zero? (rem iteration show-topics-interval))
                                       	(println "iteration " iteration (.modelLogLikelihood model)))) }
          :as   options} (make-model-options (assoc (apply hash-map args) 

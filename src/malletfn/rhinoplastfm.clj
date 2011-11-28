@@ -126,7 +126,7 @@
   "builds a DMR-ready Mallet InstanceList from a mongo query"
    [query]
    (instance-list-from-mongo 
-     (malletfn.dmrtopics/dmr-instance-pipe)
+     (malletfn.dmrtopics/dmr-instance-pipe extra-stop-words)
      (malletfn.mongo/mongo-query 
        rhinoplast-bio query 
        ["name" "content"]

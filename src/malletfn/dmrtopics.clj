@@ -90,7 +90,7 @@
 ;(write-features-sorted dmr "features.txt")
 
 
-(defn dmr-instance-pipe []
+(defn dmr-instance-pipe [extra-stop-words]
   (make-instance-pipe
     (new cc.mallet.pipe.TargetStringToFeatures)
     (new cc.mallet.pipe.Input2CharSequence)
@@ -104,10 +104,17 @@
 
 
 
+(def dmr-default-options {:iterations           1000
+                          :threads              1 
+                          :random-seed          90210
+                          :optimize-interval    20
+                          :burn-in              20
+                          :show-topics-interval 100
+                          :show-words-per-topic 20 })
 
 
 (defmethod make-model-options DMRTopicModel [args]
-  (let [options    (merge lda-default-options args)
+  (let [options    (merge dmr-default-options args)
         rootname   (or (:rootname options) (basename (:corpus options)))
         outputdir  (format "%s-%d-iterations-%d-topics-%d-threads-dmr-jkan" 
                            rootname (:iterations options) (:topics options) (:threads options))]
@@ -115,25 +122,35 @@
 
 
 (defn make-dmr [& args]
-  (let [options     (make-model-options (assoc (apply hash-map args) :class DMRTopicModel))
-        dmr         (new DMRTopicModel (:topics options))
+  (let [{:keys [topics outputdir iterations threads random-seed optimize-interval burn-in show-topics-interval show-words-per-topic iteration-trace-fn] 
+         :or   {iteration-trace-fn (fn [model iteration] 
+                                     (when (zero? (rem iteration show-topics-interval))
+                                      	(println "iteration " iteration (.modelLogLikelihood model)))) }
+         :as   options} (make-model-options (assoc (apply hash-map args) 
+                                                   :class DMRTopicModel))
         output-file (fn [filename]
-                      (let [dir (new File (:outputdir options))]
+                      (let [dir (new File outputdir)]
                         (.mkdirs dir)
-                        (new File dir filename)))]
+                        (new File dir filename)))
+        
+        dmr (proxy [DMRTopicModel] [topics]
+              (traceEndIteration [iteration]
+                                 (iteration-trace-fn this iteration)
+                                 (proxy-super traceEndIteration iteration)))]
     (doto dmr
-      (.setRandomSeed       90210)
+      (.setRandomSeed       random-seed)
       ;(.setProgressLogFile  (output-file "progress.txt"))
-      (.setTopicDisplay     100 20)
-      (.setNumIterations    (:iterations options))
-      (.setOptimizeInterval 20)
-      (.setBurninPeriod     20)
-      (.setNumThreads       (:threads options))
+      (.setTopicDisplay     show-topics-interval show-words-per-topic)
+      (.setNumIterations    iterations)
+      (.setOptimizeInterval optimize-interval)
+      (.setBurninPeriod     burn-in)
+      (.setNumThreads       threads))
       ;(.setNumBatches       8)
       ;(.setInitialStep      0.001)
       ;(.setMetaStep         0.002)
-      )
+    
     (merge options {:parameter-estimator dmr :output-file-fn output-file})))
+
 
 (defmethod write-model-results DMRTopicModel [model]
   (let [output-file (:output-file-fn model)
@@ -172,3 +189,32 @@
                        :threads 1)
              corpus))
 
+
+;;------- test ----------;;
+
+(defn test-dmr [corpus] 
+  (let [[training-corpus test-corpus] (partition-instance-list (or (:corpus corpus) corpus) 
+                                                               [90 10] *randoms*)
+        training-token-count          (count-tokens training-corpus)
+        test-token-count              (count-tokens test-corpus)
+        eval-corpus                   (fn [lda iteration]
+                                        ;(when (zero? (rem iteration (.showTopicsInterval lda)))
+                                          (let [evaluator  (get-evaluator lda)
+                                                ll-train   (evaluate-left-to-right evaluator training-corpus :iterations 1000)
+                                                ll-test    (evaluate-left-to-right evaluator test-corpus :iterations 1000)]
+                                            (println (apply str (interpose ", " [iteration 
+                                                                                 (/ (apply + ll-train) training-token-count)
+                                                                                 (/ (apply + ll-test) test-token-count)])))))]
+    (run-model (make-model :rootname "resources/dmr-synthetic" 
+                           :topics 3
+                           :iterations 1000 
+                           :iteration-trace-fn eval-corpus)
+               training-corpus)))
+
+
+;;------- testing (repl) ----------;;
+
+(comment
+  ;(def synth-corpus (dmr-synth-corpus 5000))
+  (def dmr (test-dmr malletfn.topicmodel/synth-corpus))
+    )
