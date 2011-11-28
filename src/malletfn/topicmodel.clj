@@ -12,7 +12,6 @@
   (:import (edu.umass.cs.mallet.users.kan.topics ParallelTopicModel)))
 
 
-(defstruct lda-options :class :corpus :topics :iterations :threads)
 (def lda-default-options {:iterations 1000
                           :threads    1 })
 
@@ -28,23 +27,35 @@
     (merge options { :rootname  rootname :alpha alpha :beta beta :outputdir outputdir })))
 
 
-(defstruct topic-model :parameter-estimator :options :output-file-fn)
-
 (defn make-model [& args]
-  (let [options     (make-model-options (assoc (apply hash-map args) :class ParallelTopicModel))
-        lda         (new ParallelTopicModel (:topics options) (:alpha options) (:beta options))
+  (let [{:keys [topics alpha beta outputdir iterations threads random-seed optimize-interval burn-in show-topics-interval show-words-per-topic iteration-trace-fn] 
+         :or   {random-seed 90210
+                optimize-interval 50
+                burn-in 200
+                show-topics-interval 100
+                show-words-per-topic 20
+                iteration-trace-fn (fn [model iteration] 
+                                     (when (zero? (rem iteration show-topics-interval))
+                                      	(println "iteration " iteration (.modelLogLikelihood model)))) }
+         :as   options} (make-model-options (assoc (apply hash-map args) 
+                                                   :class ParallelTopicModel))
         output-file (fn [filename]
-                      (let [dir (new File (:outputdir options))]
+                      (let [dir (new File outputdir)]
                         (.mkdirs dir)
-                        (new File dir filename)))]
+                        (new File dir filename)))
+        
+        lda (proxy [ParallelTopicModel] [topics alpha beta]
+              (traceEndIteration [iteration]
+                                 (iteration-trace-fn this iteration)
+                                 (proxy-super traceEndIteration iteration)))]
     (doto lda
-      (.setRandomSeed       90210)
+      (.setRandomSeed       random-seed)
       ;(.setProgressLogFile  (output-file "progress.txt"))
-      (.setTopicDisplay     100 20)
-      (.setNumIterations    (:iterations options))
-      (.setOptimizeInterval 50)
-      (.setBurninPeriod     200)
-      (.setNumThreads       (:threads options)))
+      (.setTopicDisplay     show-topics-interval show-words-per-topic)
+      (.setNumIterations    iterations)
+      (.setOptimizeInterval optimize-interval)
+      (.setBurninPeriod     burn-in)
+      (.setNumThreads       threads))
     (merge options {:parameter-estimator lda :output-file-fn output-file})))
 
 
@@ -85,7 +96,7 @@
 (defn run-synth-lda [corpus]
   (run-model (make-model :rootname "resources/new-synthetic" 
                          :topics 4 
-                         :iterations 5000 
+                         :iterations 1000 
                          :threads 1 
                          :alpha 2.0 
                          :beta 0.5)
@@ -117,7 +128,7 @@
 ;;------- topic inference ----------;;
 
 (defn get-inferencer [lda]
-  (let [inferencer  (.getInferencer (:parameter-estimator lda))]
+  (let [inferencer  (.getInferencer (or (:parameter-estimator lda) lda))]
     (.setRandomSeed inferencer 90210)
     inferencer))
 
@@ -146,11 +157,12 @@
 ;;------- marginal prob estimator ----------;;
 
 (defn get-evaluator [lda]
-  (let [evaluator (.getProbEstimator (:parameter-estimator lda))]
+  (let [evaluator (.getProbEstimator (or (:parameter-estimator lda) lda))]
     (.setRandomSeed evaluator 90210)
     evaluator))
 
-(defn evaluate-left-to-right 
+(defn evaluate-left-to-right
+  "returns corpus log-likelihood according to left-to-right evaluation method"
   [evaluator instances  & {:keys [iterations num-particles resample?]         
                            :or   {iterations 100
                                   num-particles 10
@@ -160,14 +172,58 @@
 
 
 
+;;------- test ----------;;
+
+(defn test-model [corpus] 
+  (let [[training-corpus test-corpus] (partition-instance-list (or (:corpus corpus) corpus) 
+                                                               [90 10] *randoms*)
+        training-token-count          (count-tokens training-corpus)
+        test-token-count              (count-tokens test-corpus)
+        eval-corpus                   (fn [lda iteration]
+                                        (when (zero? (rem iteration (.showTopicsInterval lda)))
+                                          (let [evaluator  (get-evaluator lda)
+                                                ll-train   (evaluate-left-to-right evaluator training-corpus :iterations 1000)
+                                                ll-test    (evaluate-left-to-right evaluator test-corpus :iterations 1000)]
+                                            (println (apply str (interpose ", " [iteration 
+                                                                                 (/ (apply + ll-train) training-token-count)
+                                                                                 (/ (apply + ll-test) test-token-count)]))))))]
+    (run-model (make-model :rootname "resources/new-synthetic" 
+                           :topics 4
+                           :iterations 1000 
+                           :alpha 2.0 
+                           :beta 0.5
+                           :iteration-trace-fn eval-corpus)
+               training-corpus)))
+    
+    
+
 ;;------- testing (repl) ----------;;
 
 (comment
   (def synth-corpus (dmr-synth-corpus 5000))
+  (def lda (test-model synth-corpus))
+  
+
   (def split-corpus (partition-instance-list 
                       (:corpus synth-corpus) [90 10] *randoms*))
   (def training-corpus (first split-corpus))
   (def test-corpus     (last split-corpus))
+  
+  (def training-token-count (count-tokens training-corpus))
+  (def test-token-count (count-tokens test-corpus))
+  
+  (defn eval-test-corpus [lda iteration]
+    (when (zero? (rem iteration (.showTopicsInterval lda)))
+      (let [evaluator  (get-evaluator lda)
+            ll-train   (evaluate-left-to-right evaluator training-corpus :iterations 1000)
+            ll-test    (evaluate-left-to-right evaluator test-corpus :iterations 1000)]
+        (println (apply str (interpose ", " [iteration 
+                                             (/ (apply + ll-train) training-token-count)
+                                             (/ (apply + ll-test) test-token-count)]))))))
+
+  
+  (def tlda (run-model lda-model training-corpus))
+  
   (def lda (run-synth-lda training-corpus))
   (def inferencer  (get-inferencer lda))
   (def evaluator  (get-evaluator lda))
