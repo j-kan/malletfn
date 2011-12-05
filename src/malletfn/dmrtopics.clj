@@ -194,27 +194,21 @@
 
 (defn test-dmr [corpus] 
   (let [[training-corpus test-corpus] (partition-instance-list (or (:corpus corpus) corpus) 
-                                                               [90 10] *randoms*)
-        training-token-count          (count-tokens training-corpus)
-        test-token-count              (count-tokens test-corpus)
-        eval-corpus                   (fn [lda iteration]
-                                        ;(when (zero? (rem iteration (.showTopicsInterval lda)))
-                                          (let [evaluator  (get-evaluator lda)
-                                                ll-train   (evaluate-left-to-right evaluator training-corpus :iterations 1000)
-                                                ll-test    (evaluate-left-to-right evaluator test-corpus :iterations 1000)]
-                                            (println (apply str (interpose ", " [iteration 
-                                                                                 (/ (apply + ll-train) training-token-count)
-                                                                                 (/ (apply + ll-test) test-token-count)])))))]
-    (run-model (make-model :rootname "resources/dmr-synthetic" 
-                           :topics 3
-                           :iterations 1000 
-                           :iteration-trace-fn eval-corpus)
+                                                               [90 10] *randoms*)]
+    (run-model (make-dmr :rootname (str "resources/dmr-" (name (:type corpus))) 
+                         :topics 4
+                         :iterations 1000 
+                         :iteration-trace-fn (eval-corpus-fn training-corpus test-corpus))
                training-corpus)))
 
 
 ;;------- testing (repl) ----------;;
 
+
 (comment
   ;(def synth-corpus (dmr-synth-corpus 5000))
   (def dmr (test-dmr malletfn.topicmodel/synth-corpus))
-    )
+  (def inferencer  (get-inferencer dmr))
+  )
+  
+

@@ -146,12 +146,17 @@
     (new java.io.File filename)
     iterations sample-interval burn-in doc-topics-threshold doc-topics-max))
 
-(defn ^doubles get-sampled-distribution 
+(defn get-sampled-distribution ^doubles 
   [inferencer instance & {:keys [iterations sample-interval burn-in]         
                           :or   {iterations 100
                                  sample-interval 10
                                  burn-in 10}}]
   (.getSampledDistribution inferencer instance iterations sample-interval burn-in))
+
+(defn topic-distribution [inferencer instance]
+  (let [pp (get-sampled-distribution inferencer instance)]
+    (map #(vector % (aget pp %)) 
+         (reverse (sort-indices pp)))))
 
 
 ;;------- marginal prob estimator ----------;;
@@ -171,29 +176,31 @@
   (.evaluateLeftToRight evaluator instances num-particles resample?))
 
 
-
 ;;------- test ----------;;
+
+
+(defn eval-corpus-fn [training-corpus test-corpus]
+  (let [training-token-count (count-tokens training-corpus)
+        test-token-count     (count-tokens test-corpus)]
+    (fn [lda iteration]
+      (when (zero? (rem iteration (.showTopicsInterval lda)))
+        (let [evaluator  (get-evaluator lda)
+              ll-train   (evaluate-left-to-right evaluator training-corpus :iterations 1000)
+              ll-test    (evaluate-left-to-right evaluator test-corpus :iterations 1000)]
+          (println (apply str (interpose ", " [iteration 
+                                               (/ (apply + ll-train) training-token-count)
+                                               (/ (apply + ll-test) test-token-count)]))))))))
 
 (defn test-model [corpus] 
   (let [[training-corpus test-corpus] (partition-instance-list (or (:corpus corpus) corpus) 
-                                                               [90 10] *randoms*)
-        training-token-count          (count-tokens training-corpus)
-        test-token-count              (count-tokens test-corpus)
-        eval-corpus                   (fn [lda iteration]
-                                        (when (zero? (rem iteration (.showTopicsInterval lda)))
-                                          (let [evaluator  (get-evaluator lda)
-                                                ll-train   (evaluate-left-to-right evaluator training-corpus :iterations 1000)
-                                                ll-test    (evaluate-left-to-right evaluator test-corpus :iterations 1000)]
-                                            (println (apply str (interpose ", " [iteration 
-                                                                                 (/ (apply + ll-train) training-token-count)
-                                                                                 (/ (apply + ll-test) test-token-count)]))))))]
-    (run-model (make-model :rootname "resources/new-synthetic" 
+                                                               [90 10] *randoms*)]
+    (run-model (make-model :rootname (str "resources/" (name (:type corpus))) 
                            :topics 4
                            :iterations 1000 
                            :alpha 2.0 
                            :beta 0.5
-                           :iteration-trace-fn eval-corpus)
-               training-corpus)))
+                           :iteration-trace-fn (eval-corpus-fn training-corpus test-corpus)
+               training-corpus))))
     
     
 
@@ -202,7 +209,16 @@
 (comment
   (def synth-corpus (dmr-synth-corpus 5000))
   (def lda (test-model synth-corpus))
+  (str "resources/"  (:type synth-corpus))
+  (str (name (:type synth-corpus)))
+  (str "resources/" (name (:type synth-corpus)))
+  (def inferencer  (get-inferencer lda))
   
+  (reverse (sort-indices 
+             (get-sampled-distribution inferencer (second (:corpus synth-corpus)))))
+  
+  (word-seq (second (:corpus malletfn.topicmodel/synth-corpus)))
+  (word-seq (.getTarget (second (:corpus malletfn.topicmodel/synth-corpus))))
 
   (def split-corpus (partition-instance-list 
                       (:corpus synth-corpus) [90 10] *randoms*))
