@@ -4,8 +4,43 @@
     :author "jkan" }
 
   (:use clojure.test)
-  (:import (cc.mallet.types Alphabet FeatureSequence Instance InstanceList))
+  (:import (cc.mallet.types Alphabet FeatureSequence FeatureVector Instance InstanceList))
   (:import (cc.mallet.util Randoms)))
+
+
+
+(defn seq2str [s]
+  (apply str (interpose " " s)))
+
+
+(defn- inc-vec [#^ints v i] 
+  (let [i (int i)] 
+    (assoc v i (inc (nth v i)))))
+
+(defn vec-frequencies 
+  "builds a vector containing frequency counts of the given int array"
+  [#^ints coll num-buckets]
+  (reduce inc-vec 
+          (vec (int-array num-buckets 0)) coll))
+
+(defn round-int [base n]
+  (* base (int (/ n base))))
+
+
+(defn vectorized-sum [& vs]
+  (map #(apply + %) (apply map vector vs)))
+
+(defn vectorized-mean [& vs]
+  (let [n (count vs)]
+    (map #(/ % n) (apply vectorized-sum vs))))
+
+(defn map-over-map-values
+  "sort of like map over all the values of a hashmap: takes in 
+   a hashmap and a function, applies the function to all the values,
+   and returns a hashmap with the same keys and the new values"
+  [m f]
+  (reduce #(update-in %1 [%2] f) m (keys m)))
+
 
 
 (defmulti sort-indices class)
@@ -34,37 +69,16 @@
 ;    (sort-by #(aget a %) indices)))
 
 
-(defn seq2str [s]
-  (apply str (interpose " " s)))
-
-
-(defn- inc-vec [#^ints v i] 
-  (let [i (int i)] 
-    (assoc v i (inc (nth v i)))))
-
-(defn vec-frequencies 
-  "builds a vector containing frequency counts of the given int array"
-  [#^ints coll num-buckets]
-  (reduce inc-vec 
-          (vec (int-array num-buckets 0)) coll))
-
-(defn round-int [base n]
-  (* base (int (/ n base))))
-
-
-(defn vectorized-sum [& vs]
-  (map #(apply + %) (apply map vector vs)))
-
-(defn vectorized-mean [& vs]
-  (let [n (count vs)]
-    (map #(/ % n) (apply vectorized-sum vs))))
-
 
 (defmulti word-seq class)
 
 (defmethod word-seq FeatureSequence [fs]
   (let [alphabet (.getAlphabet fs)]
     (map #(.lookupObject alphabet %) (.getFeatures fs))))
+
+(defmethod word-seq FeatureVector [fv]
+  (let [alphabet (.getAlphabet fv)]
+    (map #(.lookupObject alphabet %) (.getIndices fv))))
 
 (defmethod word-seq Instance [instance]
   (word-seq (.getData instance)))
@@ -82,6 +96,10 @@
   (apply + (map count-tokens instances)))
 
 
+
+
+
+
 (defn make-alphabet [words]
   (new Alphabet (to-array words)))
 
@@ -96,16 +114,31 @@
   (new cc.mallet.pipe.SerialPipes
     (into-array cc.mallet.pipe.Pipe pipes)))
 
+(defn partition-instance-list
+  "partition an instance list proportionally; 
+   returns a seq of instance lists of the same length as the proportions seq"
+  
+  ([instance-list proportions randoms]
+    (.split instance-list randoms
+      (double-array (map #(/ % (reduce + proportions)) 
+                         proportions))))
+
+  ([instance-list proportions]
+    (.split instance-list
+      (double-array (map #(/ % (reduce + proportions)) 
+                         proportions)))))
+
+
+
+
+
+(defn directory-iterator [dir]
+  (new cc.mallet.pipe.iterator.FileIterator 
+       dir, cc.mallet.pipe.iterator.FileIterator/LAST_DIRECTORY))
+
 
 
 (defstruct mallet-instance :data :target :name :source)
-
-(defn map-over-map-values
-  "sort of like map over all the values of a hashmap: takes in 
-   a hashmap and a function, applies the function to all the values,
-   and returns a hashmap with the same keys and the new values"
-  [m f]
-  (reduce #(update-in %1 [%2] f) m (keys m)))
 
 
 (defn mallet-iterator 
@@ -189,19 +222,6 @@
       (partition 2 (interleave data-seq features-seq)))))
 
 
-(defn partition-instance-list
-  "partition an instance list proportionally; 
-   returns a seq of instance lists of the same length as the proportions seq"
-  
-  ([instance-list proportions randoms]
-    (.split instance-list randoms
-      (double-array (map #(/ % (reduce + proportions)) 
-                         proportions))))
-
-  ([instance-list proportions]
-    (.split instance-list
-      (double-array (map #(/ % (reduce + proportions)) 
-                         proportions)))))
 
 
 (deftest test-mallet-iterator
