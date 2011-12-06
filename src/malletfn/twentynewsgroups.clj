@@ -1,11 +1,11 @@
 (ns malletfn.twentynewsgroups
-  [:use  [malletfn fileutil
-                    corpusutil
-                    topicmodel
-                    dmrtopics
-                    [synth :only [*randoms*]]]])
+  (:use (malletfn fileutil
+                  corpusutil
+                  topicmodel
+                  dmrtopics
+                  [synth :only [*randoms*]])))
 
-(defn make-iterator [rootdir]
+(defn- make-iterator [rootdir]
   (new cc.mallet.pipe.iterator.FileIterator 
        (. (new java.io.File rootdir) listFiles) 
        cc.mallet.pipe.iterator.FileIterator/LAST_DIRECTORY))
@@ -64,7 +64,7 @@
   (def lda [])
   (def twmg-lda (test-lda-20 training-instances 3))
   (def twng-dmr (test-dmr-20 training-instances 1))
-  (def inferencer (get-inferencer lda))
+  (def inferencer (get-inferencer twmg-dmr))
 
   (count training-instances)
   (def topic-indices
